@@ -14,8 +14,8 @@ const Square = ({color, width, height, coords, index}) =>
   <div
     style={{
       position: 'absolute',
-      bottom: coords.x,
-      left: coords.y,
+      left: coords.x,
+      top: coords.y,
       width,
       height,
       backgroundColor: color,
@@ -24,20 +24,22 @@ const Square = ({color, width, height, coords, index}) =>
 
 const SquareLayer = ({lightColor, darkColor, width, height}) =>
   <div style={{
-    transform: 'translateX(30px) rotate(180deg)',
-    ...styles.squareLayer}}>
+    transform: 'translateY(40px)',
+    ...styles.squareLayer
+  }}>
     {Range(0, 64).map((i) => 
       <Square
+        key={i}
         color={isLight(i) ? lightColor : darkColor}
         width={width / 8}
         height={width / 8}
         coords={{
-          x: Math.floor(i / 8) * (height / 8),
-          y: (i % 8) * (width / 8),
+          x: (i % 8) * (width / 8),
+          y: Math.floor(i / 8) * (height / 8),
         }}
         index={i}
       />
-    ).toArray()}
+    )}
   </div>
 
 export default class Board extends Component {
