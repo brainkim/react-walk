@@ -21,11 +21,15 @@ module.exports = {
       {
         test: /\.js$/,
         loaders: ['react-hot', 'babel'],
-        include: path.join(__dirname, 'src')
+        include: path.join(__dirname, 'src'),
       },
       {
         test: /\.svg$/,
-        loaders: ['url-loader']
+        loaders: ['url-loader'],
+      },
+      {
+        test: /\.pgn$/,
+        loaders: ['raw-loader'],
       }
     ]
   }

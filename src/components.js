@@ -3,7 +3,10 @@ import { Range } from 'immutable';
 
 import Chess from 'chess.js';
 import { graphql } from 'graphql';
+
 import schema from './schema';
+
+import opera from './opera.pgn';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
@@ -138,9 +141,7 @@ const Arrow = ({fromSquare, toSquare}) => {
   );
 };
 
-const game = new Chess(
-  'r1k4r/p2nb1p1/2b4p/1p1n1p2/2PP4/3Q1NB1/1P3PPP/R5K1 b - c3 0 19'
-);
+const game = new Chess();
 
 const query = `{
   position { 
