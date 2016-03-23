@@ -5,7 +5,6 @@ import Chess from 'chess.js';
 import { graphql } from 'graphql';
 
 import schema from './schema';
-
 import opera from './opera.pgn';
 
 const BOARD_SIZE = 600;
@@ -122,6 +121,20 @@ const SVGLayer = ({children}) =>
     {children}
   </svg>
 
+const Circle = ({square}) => {
+  const coords = squareToCoords(square, CENTER_OFFSET);
+  return (
+    <circle
+      cx={coords.x}
+      cy={coords.y}
+      r={SQUARE_SIZE*0.5 - 5}
+      stroke="#15781B"
+      strokeWidth="6"
+      fill="none"
+    />
+  );
+};
+
 const Arrow = ({fromSquare, toSquare}) => {
   const from = squareToCoords(fromSquare, CENTER_OFFSET);
   const to = squareToCoords(toSquare, CENTER_OFFSET);
@@ -142,38 +155,44 @@ const Arrow = ({fromSquare, toSquare}) => {
 };
 
 const game = new Chess();
-
-const query = `{
-  position { 
-    fen,
-    pieces {
-      name,
-      square,
-      color,
-    },
-    legalMoves {
-      from,
-      to,
-      color,
-    }
-  },
-  history {
-    san,
-  }
-}`;
+game.load_pgn(opera);
 
 export class Board extends Component {
   constructor(props) { 
     super(props);
-    this.state = { data: null };
+    this.state = {
+      moveIndex: 0,
+      data: null,
+    };
   }
 
   componentDidMount() {
-    graphql(schema, query, game).then((result) => {
-      console.log(result);
+    this.updateData(this.state.moveIndex);
+  }
 
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.moveIndex !== this.state.moveIndex) {
+      this.updateData(moveIndex);
+    }
+  }
+
+  updateData(moveIndex) {
+    const query = `{
+      position(moveIndex: ${moveIndex}) { 
+        fen,
+        pieces {
+          name,
+          square,
+          color,
+        },
+      }
+    }`;
+
+    graphql(schema, query, game).then((result) => {
       if (result.data != null) {
-        this.setState({ data: result.data });
+        this.setState({
+          data: result.data,
+        });
       }
     });
   }
@@ -198,11 +217,9 @@ export class Board extends Component {
             name={p.name}
             color={p.color}
             square={p.square}
+            key={p.square}
           />
         )}
-        <SVGLayer>
-          <Arrow fromSquare="h1" toSquare="f2"/>
-        </SVGLayer>
       </div>
     );
   }

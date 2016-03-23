@@ -1,9 +1,12 @@
+import Chess from 'chess.js';
 import {
   graphql,
   GraphQLSchema,
+  GraphQLString,
+  GraphQLInt,
   GraphQLList,
+  GraphQLEnumType,
   GraphQLObjectType,
-  GraphQLString
 } from 'graphql';
 
 const fenToPieces = (fen) => {
@@ -54,33 +57,54 @@ const positionType = new GraphQLObjectType({
   name: 'position',
   fields: {
     fen: { type: GraphQLString },
+
     pieces: {
       type: new GraphQLList(pieceType),
       resolve: (position) => {
         return fenToPieces(position.fen());
       }
     },
+
     legalMoves: {
       type: new GraphQLList(moveType),
       resolve: (position) => position.moves({ verbose: true }),
     },
+
+    moveIndex: {
+      type: GraphQLInt,
+      resolve: (position) => position.history().length,
+    },
   },
 });
 
-export default new GraphQLSchema({
-  query: new GraphQLObjectType({
-    name: 'game',
-    fields: {
-      position: {
-        type: positionType,
-        resolve: (game) => game,
+const gameType = new GraphQLObjectType({
+  name: 'game',
+  fields: {
+    position: {
+      type: positionType,
+      args: {
+        moveIndex: { type: GraphQLInt },
+        color: { type: GraphQLString },
       },
-      history: {
-        type: new GraphQLList(moveType),
-        resolve: (game) => {
-          return game.history({ verbose: true });
-        },
+      resolve: (game, {moveIndex}) => {
+        const history = game.history().slice(0, moveIndex);
+        return history.reduce((g, m) => {
+          g.move(m);
+          return g;
+        }, new Chess());
       },
     },
-  }),
+
+    history: {
+      type: new GraphQLList(moveType),
+      resolve: (game) => {
+        return game.history({ verbose: true });
+      },
+    },
+  },
+});
+
+
+export default new GraphQLSchema({
+  query: gameType,
 });
