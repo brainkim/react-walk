@@ -1,29 +1,13 @@
 import React, { Component } from 'react';
 import { Range } from 'immutable'; 
-import Chess from 'chess.js';
 
+import Chess from 'chess.js';
 import { graphql } from 'graphql';
-import schema from '../schema';
+import schema from './schema';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
-const CENTER_OFFSET = {
-  x: SQUARE_SIZE/2,
-  y: SQUARE_SIZE/2,
-};
-
-function isLight(i) {
-  const rank = Math.floor(i / 8);
-  if (rank % 2 === 0) {
-    return i % 2 === 0;
-  } else {
-    return i % 2 === 1;
-  }
-}
-
-const game = new Chess(
-  'r1k4r/p2nb1p1/2b4p/1p1n1p2/2PP4/3Q1NB1/1P3PPP/R5K1 b - c3 0 19'
-);
+const CENTER_OFFSET = { x: SQUARE_SIZE/2, y: SQUARE_SIZE/2 };
 
 const Square = ({color, coords}) =>
   <div
@@ -36,6 +20,15 @@ const Square = ({color, coords}) =>
       backgroundColor: color,
     }}
   />
+
+const isLight = (i) => {
+  const rank = Math.floor(i / 8);
+  if (rank % 2 === 0) {
+    return i % 2 === 0;
+  } else {
+    return i % 2 === 1;
+  }
+};
 
 const SquareLayer = ({lightColor, darkColor}) =>
   <div
@@ -64,9 +57,9 @@ const pieceSrc = (name, color) => {
   }
   name = name.slice(0,1).toUpperCase();
   try {
-    return require(`../images/cburnett/${color}${name}.svg`);
+    return require(`./images/cburnett/${color}${name}.svg`);
   } catch (er) {
-    return require('../images/cburnett/wK.svg');
+    return require('./images/cburnett/wK.svg');
   }
 };
 
@@ -116,7 +109,7 @@ const SVGLayer = ({children}) =>
         refX="0"
         refY="5"
         markerUnits="strokeWidth"
-        fill="none"
+        fill="#15781B"
       >
         <g>
           <path d="M 0,0 L 0,10 L 8.5,5 z" />
@@ -136,7 +129,7 @@ const Arrow = ({fromSquare, toSquare}) => {
       y1={from.y}
       x2={to.x - (Math.cos(angle)*(SQUARE_SIZE*0.34))}
       y2={to.y - (Math.sin(angle)*(SQUARE_SIZE*0.34))}
-      fill={fill}
+      stroke="#15781B"
       strokeWidth="10"
       strokeLinecap="round"
       markerEnd="url(#arrowhead)"
@@ -145,8 +138,11 @@ const Arrow = ({fromSquare, toSquare}) => {
   );
 };
 
-const query = `
-{
+const game = new Chess(
+  'r1k4r/p2nb1p1/2b4p/1p1n1p2/2PP4/3Q1NB1/1P3PPP/R5K1 b - c3 0 19'
+);
+
+const query = `{
   position { 
     fen,
     pieces {
@@ -159,33 +155,31 @@ const query = `
       to,
       color,
     }
+  },
+  history {
+    san,
   }
-}
-`;
+}`;
 
-export default class Board extends Component {
+export class Board extends Component {
   constructor(props) { 
     super(props);
-    this.state = {
-      data: null,
-    };
+    this.state = { data: null };
   }
 
   componentDidMount() {
     graphql(schema, query, game).then((result) => {
       console.log(result);
+
       if (result.data != null) {
-        this.setState({
-          data: result.data,
-        });
+        this.setState({ data: result.data });
       }
     });
   }
 
   render() {
-    const {data} = this.state;
-    const pieces = data ? data.position.pieces : [];
-    const legalMoves = data ? data.position.legalMoves : [];
+    const { data } = this.state;
+    const pieces = data != null ? data.position.pieces : [];
     return (
       <div
         style={{
@@ -198,48 +192,16 @@ export default class Board extends Component {
           lightColor="#eee"
           darkColor="#999"
         />
+        {pieces.map((p) =>
+          <Piece
+            name={p.name}
+            color={p.color}
+            square={p.square}
+          />
+        )}
         <SVGLayer>
-          <Arrow
-            fromSquare='b4'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='b6'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='c7'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='e7'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='f6'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='f4'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='e3'
-            toSquare='d5'
-            fill='#366'
-          />
-          <Arrow
-            fromSquare='c3'
-            toSquare='d5'
-            fill='#366'
-          />
-        </SVGLayer>  
+          <Arrow fromSquare="h1" toSquare="f2"/>
+        </SVGLayer>
       </div>
     );
   }

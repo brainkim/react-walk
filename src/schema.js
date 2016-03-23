@@ -37,6 +37,7 @@ const moveType = new GraphQLObjectType({
     from: { type: GraphQLString },
     to: { type: GraphQLString },
     color: { type: GraphQLString },
+    san: { type: GraphQLString },
   },
 });
 
