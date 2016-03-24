@@ -154,10 +154,24 @@ const Arrow = ({fromSquare, toSquare}) => {
   );
 };
 
+export const Board = ({ children }) =>
+  <div
+    style={{
+      position: 'relative',
+      width: BOARD_SIZE,
+      height: BOARD_SIZE,
+    }}>
+    <SquareLayer
+      lightColor="#eee"
+      darkColor="#999"
+    />
+    { children }
+  </div>
+
 const game = new Chess();
 game.load_pgn(opera);
 
-export class Board extends Component {
+export class App extends Component {
   constructor(props) { 
     super(props);
     this.state = {
@@ -172,7 +186,7 @@ export class Board extends Component {
 
   componentDidUpdate(prevProps, prevState) {
     if (prevState.moveIndex !== this.state.moveIndex) {
-      this.updateData(moveIndex);
+      this.updateData(this.state.moveIndex);
     }
   }
 
@@ -185,10 +199,15 @@ export class Board extends Component {
           square,
           color,
         },
+      },
+      history {
+        length,
       }
     }`;
 
     graphql(schema, query, game).then((result) => {
+      console.log(result);
+
       if (result.data != null) {
         this.setState({
           data: result.data,
@@ -200,26 +219,38 @@ export class Board extends Component {
   render() {
     const { data } = this.state;
     const pieces = data != null ? data.position.pieces : [];
+    const legalMoves = data != null ? data.position.legalMoves : [];
+    const historyLength = data != null ? data.history.length : 0;
+
     return (
       <div
         style={{
-          position: 'relative',
-          width: BOARD_SIZE,
-          height: BOARD_SIZE,
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'top',
+          justifyContent: 'center',
+          overflow: 'hidden',
         }}
       >
-        <SquareLayer
-          lightColor="#eee"
-          darkColor="#999"
-        />
-        {pieces.map((p) =>
-          <Piece
-            name={p.name}
-            color={p.color}
-            square={p.square}
-            key={p.square}
-          />
-        )}
+        <div>
+        <Board>
+          {pieces.map((p) =>
+            <Piece
+              name={p.name}
+              color={p.color}
+              square={p.square}
+              key={p.square}
+            />
+          )}
+        </Board>
+          <div>
+            <button
+              onClick={() => { this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)}); }}>{'<'}</button>
+            <button
+              onClick={() => { this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)}); }}>{'>'}</button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -77,6 +77,21 @@ const positionType = new GraphQLObjectType({
   },
 });
 
+const historyType = new GraphQLObjectType({
+  name: 'history',
+  fields: {
+    length: {
+      type: GraphQLInt,
+    },
+    moves: {
+      type: new GraphQLList(moveType),
+      resolve: (history) => {
+        return history;
+      },
+    },
+  }, 
+});
+
 const gameType = new GraphQLObjectType({
   name: 'game',
   fields: {
@@ -96,7 +111,7 @@ const gameType = new GraphQLObjectType({
     },
 
     history: {
-      type: new GraphQLList(moveType),
+      type: historyType,
       resolve: (game) => {
         return game.history({ verbose: true });
       },
