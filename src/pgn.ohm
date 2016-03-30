@@ -1,0 +1,21 @@
+PGN {
+
+Game
+  = TagPair* MoveText
+
+TagPair
+  = "[" tagName tagValue "]"
+
+tagName = tagCharacter*
+
+tagCharacter
+  = alnum
+
+tagValue
+  = string
+
+string = "\"" alnum* "\""
+
+MoveText = "poop"
+
+}
