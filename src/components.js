@@ -4,8 +4,9 @@ import { Range } from 'immutable';
 import Chess from 'chess.js';
 import { graphql } from 'graphql';
 
+import debounce from 'lodash.debounce';
+
 import schema from './schema';
-import opera from './opera.pgn';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
@@ -52,6 +53,15 @@ const SquareLayer = ({lightColor, darkColor}) =>
     />
   )}</div>
 
+const squareToCoords = (square, offset={x: 0, y: 0}) => {
+  const rank = 7 - (parseInt(square[1]) - 1);
+  const file = square.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+  return {
+    x: file * SQUARE_SIZE + offset.x,
+    y: rank * SQUARE_SIZE + offset.y,
+  };
+};
+
 const pieceSrc = (name, color) => {
   color = color.slice(0,1).toLowerCase();
   if (/knight/i.test(name)) { 
@@ -65,32 +75,39 @@ const pieceSrc = (name, color) => {
   }
 };
 
-const squareToCoords = (square, offset={x: 0, y: 0}) => {
-  const rank = 7 - (parseInt(square[1]) - 1);
-  const file = square.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-  return {
-    x: file * SQUARE_SIZE + offset.x,
-    y: rank * SQUARE_SIZE + offset.y,
-  };
-};
+class Piece extends Component {
+  constructor(props) {
+    super(props);
+  }
 
-const Piece = ({name, color, square}) => {
-  const {x, y} = squareToCoords(square);
-  return (
-    <img
-      style={{
-        width: SQUARE_SIZE,
-        height: SQUARE_SIZE,
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        transform: `translate(${x}px,${y}px)`,
-        transition: 'transform 0.2s ease-in',
-        cursor: 'pointer',
-      }}
-      src={pieceSrc(name, color)}
-    />
-  );
+  render() {
+    const {name, color, square, index, originalSquare} = this.props;
+    const {x, y} = squareToCoords(square);
+    return (
+      <div
+        style={{
+          width: SQUARE_SIZE,
+          height: SQUARE_SIZE,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          transform: `translate(${x}px,${y}px)`,
+          transition: 'transform 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000)',
+          cursor: 'pointer',
+        }}
+        >
+        <img
+          style={{
+            width: SQUARE_SIZE,
+            height: SQUARE_SIZE,
+            position: 'absolute',
+          }}
+          src={pieceSrc(name, color)}
+        />
+        <div style={{position: 'absolute'}}>{originalSquare} - {index}</div>
+      </div>
+    );
+  }
 };
 
 const SVGLayer = ({children}) =>
@@ -136,22 +153,26 @@ const Circle = ({square}) => {
 };
 
 const Arrow = ({fromSquare, toSquare}) => {
-  const from = squareToCoords(fromSquare, CENTER_OFFSET);
-  const to = squareToCoords(toSquare, CENTER_OFFSET);
-  const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  return (
-    <line
-      x1={from.x}
-      y1={from.y}
-      x2={to.x - (Math.cos(angle)*(SQUARE_SIZE*0.34))}
-      y2={to.y - (Math.sin(angle)*(SQUARE_SIZE*0.34))}
-      stroke="#15781B"
-      strokeWidth="10"
-      strokeLinecap="round"
-      markerEnd="url(#arrowhead)"
-      opacity="0.6"
-    />
-  );
+  if (fromSquare === toSquare) {
+    return null;
+  } else {
+    const from = squareToCoords(fromSquare, CENTER_OFFSET);
+    const to = squareToCoords(toSquare, CENTER_OFFSET);
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    return (
+      <line
+        x1={from.x}
+        y1={from.y}
+        x2={to.x - (Math.cos(angle)*(SQUARE_SIZE*0.34))}
+        y2={to.y - (Math.sin(angle)*(SQUARE_SIZE*0.34))}
+        stroke="#15781B"
+        strokeWidth="10"
+        strokeLinecap="round"
+        markerEnd="url(#arrowhead)"
+        opacity="0.6"
+      />
+    );
+  }
 };
 
 export const Board = ({ children }) =>
@@ -168,9 +189,6 @@ export const Board = ({ children }) =>
     { children }
   </div>
 
-const game = new Chess();
-game.load_pgn(opera);
-
 export class App extends Component {
   constructor(props) { 
     super(props);
@@ -182,6 +200,14 @@ export class App extends Component {
 
   componentDidMount() {
     this.updateData(this.state.moveIndex);
+    window.addEventListener('keydown', debounce((ev) => {
+      const historyLength = this.state.data != null ? this.state.data.history.length : 0;
+      if (ev.keyCode === 37) { //left
+        this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)});
+      } else if (ev.keyCode === 39) { //right
+        this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)});
+      }
+    }), 26);
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -198,6 +224,7 @@ export class App extends Component {
           name,
           square,
           color,
+          originalSquare,
         },
       },
       history {
@@ -205,9 +232,7 @@ export class App extends Component {
       }
     }`;
 
-    graphql(schema, query, game).then((result) => {
-      console.log(result);
-
+    graphql(schema, query).then((result) => {
       if (result.data != null) {
         this.setState({
           data: result.data,
@@ -233,22 +258,31 @@ export class App extends Component {
           overflow: 'hidden',
         }}
       >
-        <div>
         <Board>
-          {pieces.map((p) =>
+          <SVGLayer>
+            {pieces.map((p, i) => {
+              if (p.square === p.originalSquare) {
+                return (<Circle square={p.square} key={i} />);
+              } else {
+                return (<Arrow fromSquare={p.square} toSquare={p.originalSquare} key={i} />);
+              }
+            })}
+          </SVGLayer>
+          {pieces.map((p, i) =>
             <Piece
+              key={p.originalSquare}
               name={p.name}
               color={p.color}
               square={p.square}
-              key={p.square}
+              index={i}
+              originalSquare={p.originalSquare}
             />
-          )}
+          )};
         </Board>
+        <div>
           <div>
-            <button
-              onClick={() => { this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)}); }}>{'<'}</button>
-            <button
-              onClick={() => { this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)}); }}>{'>'}</button>
+            <button onClick={() => { this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)}); }}>{'<'}</button>
+            <button onClick={() => { this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)}); }}>{'>'}</button>
           </div>
         </div>
       </div>

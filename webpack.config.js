@@ -30,7 +30,12 @@ module.exports = {
       {
         test: /\.pgn$/,
         loaders: ['raw-loader'],
-      }
+      },
+      {
+        test: /\.ohm$/,
+        loaders: ['raw-loader'],
+      },
     ]
-  }
+  },
+  devtool: "source-map",
 };

@@ -9,6 +9,15 @@ import {
   GraphQLObjectType,
 } from 'graphql';
 
+import { fromJS } from 'immutable'; 
+
+import opera from './opera.pgn';
+import fischerImmortal from './fischer-immortal.pgn';
+
+const game = new Chess();
+game.load_pgn(fischerImmortal);
+const gameHistory = game.history({ verbose: true });
+
 const fenToPieces = (fen) => {
   const pieces = [];
   fen.split(/\s/)[0].split('/').forEach((rowStr, y) => {
@@ -18,9 +27,9 @@ const fenToPieces = (fen) => {
       let p1 = parseInt(p);
       if (Number.isNaN(p1)) {
         pieces.push({
-          name: p.toUpperCase(),
+          name: p.toLowerCase(),
           color: p === p.toUpperCase() ? 'white' : 'black',
-          square: String.fromCharCode(65 + file) + (rank + 1).toString(),
+          square: String.fromCharCode(97 + file) + (rank + 1).toString(),
         });
         file += 1;
       } else {
@@ -50,8 +59,35 @@ const pieceType = new GraphQLObjectType({
     name: { type: GraphQLString },
     color: { type: GraphQLString },
     square: { type: GraphQLString },
+    originalSquare: { type: GraphQLString, },
   },
 });
+
+const originalSquare = (piece, position) => {
+  return position.history({verbose: true}).reverse().reduce((square, move) => {
+    if (move.san === 'O-O' && piece.name === 'r') {
+      if (move.color === 'w' && square.toLowerCase() === 'f1') {
+        return 'h1';
+      } else if (move.color === 'b' && square.toLowerCase() === 'f8') {
+        return 'h8';
+      } else {
+        return square;
+      }
+    } else if (move.san === 'O-O-O' && piece.name === 'r') { 
+      if (move.color === 'w' && square.toLowerCase() === 'd1') {
+        return 'a1';
+      } else if (move.color === 'b' && square.toLowerCase() === 'd8') {
+        return 'a8';
+      } else {
+        return square;
+      }
+    } else if (move.to.toLowerCase() === square.toLowerCase()) {
+      return move.from;
+    } else {
+      return square;
+    }
+  }, piece.square);
+};
 
 const positionType = new GraphQLObjectType({
   name: 'position',
@@ -61,7 +97,18 @@ const positionType = new GraphQLObjectType({
     pieces: {
       type: new GraphQLList(pieceType),
       resolve: (position) => {
-        return fenToPieces(position.fen());
+        const pieces = fenToPieces(position.fen()).map((piece, i) => {
+          piece.originalSquare = originalSquare(piece, position);
+          return piece;
+        });
+        pieces.sort((oP, nP) => {
+          if (oP.originalSquare < nP.originalSquare) {
+            return -1;
+          } else {
+            return 1;
+          }
+        });
+        return pieces;
       }
     },
 
@@ -72,7 +119,11 @@ const positionType = new GraphQLObjectType({
 
     moveIndex: {
       type: GraphQLInt,
-      resolve: (position) => position.history().length,
+      resolve: (position) => {
+        return position.moveIndex != null
+          ? position.moveIndex
+          : position.history().length;
+      },
     },
   },
 });
@@ -92,6 +143,8 @@ const historyType = new GraphQLObjectType({
   }, 
 });
 
+const _positions = {};
+
 const gameType = new GraphQLObjectType({
   name: 'game',
   fields: {
@@ -101,19 +154,26 @@ const gameType = new GraphQLObjectType({
         moveIndex: { type: GraphQLInt },
         color: { type: GraphQLString },
       },
-      resolve: (game, {moveIndex}) => {
-        const history = game.history().slice(0, moveIndex);
-        return history.reduce((g, m) => {
-          g.move(m);
-          return g;
-        }, new Chess());
+      resolve: (_, {moveIndex}) => {
+        if (_positions[moveIndex] == null ) {
+          const position = gameHistory
+            .slice(0, moveIndex)
+            .reduce((g, m) => {
+              g.move(m);
+              return g;
+            }, new Chess());
+          _positions[moveIndex] = position;
+          return position;
+        } else {
+          return _positions[moveIndex];
+        }
       },
     },
 
     history: {
       type: historyType,
-      resolve: (game) => {
-        return game.history({ verbose: true });
+      resolve: function peep() {
+        return gameHistory;
       },
     },
   },

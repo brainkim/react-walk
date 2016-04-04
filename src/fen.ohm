@@ -1,0 +1,30 @@
+FEN {
+
+Position = piecePlacement turn castling enPassantTarget plyClock moveNumber
+
+piecePlacement = nonemptyListOf<piecePlacementRank, "/"> 
+piecePlacementRank = (digit | piece)*
+
+turn = white | black
+
+castling
+  = ("K"? "Q"? "k"? "q"?) --pieces
+  | "-"
+
+enPassantTarget
+  = square
+  | "-"
+
+white = "w"
+black = "b"
+
+piece = letter
+
+square = file rank
+file = "a".."h" | "A".."H"
+rank = "1".."8"
+
+plyClock = digit*
+moveNumber = digit*
+
+}
