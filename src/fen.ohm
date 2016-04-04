@@ -2,18 +2,18 @@ FEN {
 
 Position = piecePlacement turn castling enPassantTarget plyClock moveNumber
 
-piecePlacement = nonemptyListOf<piecePlacementRank, "/"> 
+piecePlacement = piecePlacementRank ("/" piecePlacementRank)*
 piecePlacementRank = (digit | piece)*
 
 turn = white | black
 
 castling
-  = ("K"? "Q"? "k"? "q"?) --pieces
-  | "-"
+  = letter+
+  | empty
 
 enPassantTarget
   = square
-  | "-"
+  | empty
 
 white = "w"
 black = "b"
@@ -26,5 +26,7 @@ rank = "1".."8"
 
 plyClock = digit*
 moveNumber = digit*
+
+empty = "-"
 
 }

@@ -7,6 +7,7 @@ import { graphql } from 'graphql';
 import debounce from 'lodash.debounce';
 
 import schema from './schema';
+import model from './model';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
