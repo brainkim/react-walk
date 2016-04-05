@@ -1,5 +1,7 @@
-import React, { Component } from 'react';
-import { Range } from 'immutable'; 
+import React, { Component, Children } from 'react';
+import { Range } from 'immutable';
+
+import { spring, TransitionMotion } from 'react-motion';
 
 import Chess from 'chess.js';
 import { graphql } from 'graphql';
@@ -76,6 +78,59 @@ const pieceSrc = (name, color) => {
   }
 };
 
+class PieceLayer extends Component {
+  constructor(props) {
+    super(props);
+
+    this.pieceKeyCache = null;
+  }
+
+  render() {
+    return (
+      <TransitionMotion
+        styles={this.getStyles()}
+        willLeave={this.pieceWillLeave}>
+        {(styles) =>
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+            }}
+          >{styles.map(({key, style, data}) =>
+            <div
+              key={key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: `translate(${style.x}px,${style.y}px)`,
+              }}
+            >{data}</div>
+          )}</div>
+        }
+      </TransitionMotion>
+    );
+  }
+
+  getStyles() {
+    const { children } = this.props;
+    return Children.map(children, (c) => {
+      const {square} = c.props;
+      const {x, y} = squareToCoords(square);
+      return {
+        key: c.key,
+        data: c,
+        style: {
+          x: spring(x),
+          y: spring(y),
+        },
+      };
+    });
+  }
+}
+
+
 class Piece extends Component {
   constructor(props) {
     super(props);
@@ -89,11 +144,6 @@ class Piece extends Component {
         style={{
           width: SQUARE_SIZE,
           height: SQUARE_SIZE,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          transform: `translate(${x}px,${y}px)`,
-          transition: 'transform 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000)',
           cursor: 'pointer',
         }}
         >
@@ -269,16 +319,18 @@ export class App extends Component {
               }
             })}
           </SVGLayer>
-          {pieces.map((p, i) =>
-            <Piece
-              key={p.originalSquare}
-              name={p.name}
-              color={p.color}
-              square={p.square}
-              index={i}
-              originalSquare={p.originalSquare}
-            />
-          )};
+          <PieceLayer>
+            {pieces.map((p, i) =>
+              <Piece
+                key={p.originalSquare}
+                name={p.name}
+                color={p.color}
+                square={p.square}
+                index={i}
+                originalSquare={p.originalSquare}
+              />
+            )}
+          </PieceLayer>
         </Board>
         <div>
           <div>

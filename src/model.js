@@ -25,9 +25,7 @@ fenSemantics.addOperation('data', {
       const rankLabel = RANK_LABELS[RANK_LABELS.length - rankIndex - 1];
       return rank.reduce(({pieceMap, fileIndex}, character) => {
         const fileLabel = FILE_LABELS[fileIndex];
-
         if (Number.isNaN(parseInt(character))) {
-
           const color = character === character.toUpperCase()
             ? 'white'
             : 'black';
@@ -76,5 +74,3 @@ const parseFen = (fen) => {
 
 const defaultStartingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
 const defaultStartingPosition = parseFen(defaultStartingFen);
-
-
