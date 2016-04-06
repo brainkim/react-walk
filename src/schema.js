@@ -155,24 +155,13 @@ const gameType = new GraphQLObjectType({
         color: { type: GraphQLString },
       },
       resolve: (_, {moveIndex}) => {
-        if (_positions[moveIndex] == null ) {
-          const position = gameHistory
-            .slice(0, moveIndex)
-            .reduce((g, m) => {
-              g.move(m);
-              return g;
-            }, new Chess());
-          _positions[moveIndex] = position;
-          return position;
-        } else {
-          return _positions[moveIndex];
-        }
+        return _positions[moveIndex];
       },
     },
 
     history: {
       type: historyType,
-      resolve: function peep() {
+      resolve: () => {
         return gameHistory;
       },
     },

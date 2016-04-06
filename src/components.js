@@ -4,12 +4,8 @@ import { Range } from 'immutable';
 import { spring, TransitionMotion } from 'react-motion';
 
 import Chess from 'chess.js';
-import { graphql } from 'graphql';
 
 import debounce from 'lodash.debounce';
-
-import schema from './schema';
-import model from './model';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
@@ -54,7 +50,7 @@ const SquareLayer = ({lightColor, darkColor}) =>
         y: Math.floor(i / 8) * SQUARE_SIZE,
       }}
     />
-  )}</div>
+  ).toJS()}</div>
 
 const squareToCoords = (square, offset={x: 0, y: 0}) => {
   const rank = 7 - (parseInt(square[1]) - 1);
@@ -240,63 +236,118 @@ export const Board = ({ children }) =>
     { children }
   </div>
 
+const fenToPieces = (fen) => {
+  const pieces = [];
+  fen.split(/\s/)[0].split('/').forEach((rowStr, y) => {
+    let rank = 7 - y;
+    let file = 0;
+    rowStr.split('').forEach((p) => {
+      let p1 = parseInt(p);
+      if (Number.isNaN(p1)) {
+        pieces.push({
+          name: p.toLowerCase(),
+          color: p === p.toUpperCase() ? 'white' : 'black',
+          square: String.fromCharCode(97 + file) + (rank + 1).toString(),
+        });
+        file += 1;
+      } else {
+        file += p1;
+      }
+    });
+  });
+  return pieces;
+};
+
+const originalSquare = (piece, position) => {
+  return position.history({verbose: true}).reverse().reduce((square, move) => {
+    if (move.san === 'O-O' && piece.name === 'r') {
+      if (move.color === 'w' && square.toLowerCase() === 'f1') {
+        return 'h1';
+      } else if (move.color === 'b' && square.toLowerCase() === 'f8') {
+        return 'h8';
+      } else {
+        return square;
+      }
+    } else if (move.san === 'O-O-O' && piece.name === 'r') { 
+      if (move.color === 'w' && square.toLowerCase() === 'd1') {
+        return 'a1';
+      } else if (move.color === 'b' && square.toLowerCase() === 'd8') {
+        return 'a8';
+      } else {
+        return square;
+      }
+    } else if (move.to.toLowerCase() === square.toLowerCase()) {
+      return move.from;
+    } else {
+      return square;
+    }
+  }, piece.square);
+};
+
+const pgnToPositions = (pgn) => {
+  const game = new Chess();
+  game.load_pgn(pgn);
+  const gameHistory = game.history({ verbose: true });
+  const positions = [];
+  gameHistory.forEach((move, i) => {
+    const position = gameHistory
+      .slice(0, i)
+      .reduce((g, m) => {
+        g.move(m);
+        return g;
+      }, new Chess());
+    const pieces = fenToPieces(position.fen());
+    pieces.forEach((piece) => {
+      piece.originalSquare = originalSquare(piece, position);
+    });
+
+    positions.push(pieces);
+  });
+  return positions;
+};
+
+import fischerImmortal from './fischer-immortal.pgn';
+
+const positions = pgnToPositions(fischerImmortal);
+
 export class App extends Component {
   constructor(props) { 
     super(props);
     this.state = {
       moveIndex: 0,
-      data: null,
+      positions: positions,
     };
   }
 
   componentDidMount() {
-    this.updateData(this.state.moveIndex);
     window.addEventListener('keydown', debounce((ev) => {
-      const historyLength = this.state.data != null ? this.state.data.history.length : 0;
       if (ev.keyCode === 37) { //left
-        this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)});
+        this.goBack();
       } else if (ev.keyCode === 39) { //right
-        this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)});
+        this.goForward();
       }
     }), 26);
   }
-
-  componentDidUpdate(prevProps, prevState) {
-    if (prevState.moveIndex !== this.state.moveIndex) {
-      this.updateData(this.state.moveIndex);
-    }
+  
+  goBack() {
+    const { positions, moveIndex } = this.state;
+    const skip = Math.floor(Math.random() * 5);
+    this.setState({ 
+      moveIndex: Math.max(moveIndex - skip, 0),
+    });
   }
 
-  updateData(moveIndex) {
-    const query = `{
-      position(moveIndex: ${moveIndex}) { 
-        fen,
-        pieces {
-          name,
-          square,
-          color,
-          originalSquare,
-        },
-      },
-      history {
-        length,
-      }
-    }`;
-
-    graphql(schema, query).then((result) => {
-      if (result.data != null) {
-        this.setState({
-          data: result.data,
-        });
-      }
+  goForward() {
+    const { positions, moveIndex } = this.state;
+    const skip = Math.floor(Math.random() * 5);
+    this.setState({ 
+      moveIndex: Math.max(moveIndex + skip, 0),
     });
   }
 
   render() {
-    const { data } = this.state;
-    const pieces = data != null ? data.position.pieces : [];
-    const legalMoves = data != null ? data.position.legalMoves : [];
-    const historyLength = data != null ? data.history.length : 0;
+    const { positions, moveIndex } = this.state;
+    const position = positions[moveIndex];
 
     return (
       <div
@@ -310,8 +361,9 @@ export class App extends Component {
         }}
       >
         <Board>
+          {/*
           <SVGLayer>
-            {pieces.map((p, i) => {
+            {position.map((p, i) => {
               if (p.square === p.originalSquare) {
                 return (<Circle square={p.square} key={i} />);
               } else {
@@ -319,8 +371,9 @@ export class App extends Component {
               }
             })}
           </SVGLayer>
+          */}
           <PieceLayer>
-            {pieces.map((p, i) =>
+            {position.map((p, i) =>
               <Piece
                 key={p.originalSquare}
                 name={p.name}
