@@ -118,8 +118,8 @@ class PieceLayer extends Component {
         key: c.key,
         data: c,
         style: {
-          x: spring(x),
-          y: spring(y),
+          x: spring(x, {stiffness: 300, damping: 30}),
+          y: spring(y, {stiffness: 300, damping: 30}),
         },
       };
     });
@@ -303,6 +303,11 @@ const pgnToPositions = (pgn) => {
 
     positions.push(pieces);
   });
+  const pieces = fenToPieces(game.fen());
+  pieces.forEach((piece) => {
+    piece.originalSquare = originalSquare(piece, game);
+  });
+  positions.push(pieces);
   return positions;
 };
 
@@ -331,17 +336,15 @@ export class App extends Component {
   
   goBack() {
     const { positions, moveIndex } = this.state;
-    const skip = Math.floor(Math.random() * 5);
     this.setState({ 
-      moveIndex: Math.max(moveIndex - skip, 0),
+      moveIndex: Math.max(moveIndex - 1, 0),
     });
   }
 
   goForward() {
     const { positions, moveIndex } = this.state;
-    const skip = Math.floor(Math.random() * 5);
-    this.setState({ 
-      moveIndex: Math.max(moveIndex + skip, 0),
+    this.setState({
+      moveIndex: Math.min(moveIndex + 1, positions.length - 1),
     });
   }
 
@@ -358,6 +361,7 @@ export class App extends Component {
           alignItems: 'top',
           justifyContent: 'center',
           overflow: 'hidden',
+          position: 'relative',
         }}
       >
         <Board>
@@ -387,9 +391,13 @@ export class App extends Component {
         </Board>
         <div>
           <div>
-            <button onClick={() => { this.setState({moveIndex: Math.max(this.state.moveIndex - 1, 0)}); }}>{'<'}</button>
-            <button onClick={() => { this.setState({moveIndex: Math.min(this.state.moveIndex + 1, historyLength)}); }}>{'>'}</button>
+            <button onClick={this.goBack.bind(this)}>{'<'}</button>
+            <button onClick={this.goForward.bind(this)}>{'>'}</button>
           </div>
+        </div>
+        <div style={{position: 'absolute', top: 0, left: 0}}>
+          <div>{moveIndex}</div>
+          <div>{positions.length}</div>
         </div>
       </div>
     );
