@@ -18,7 +18,7 @@ const game = new Chess();
 game.load_pgn(fischerImmortal);
 const gameHistory = game.history({ verbose: true });
 
-const fenToPieces = (fen) => {
+function fenToPieces(fen) {
   const pieces = [];
   fen.split(/\s/)[0].split('/').forEach((rowStr, y) => {
     let rank = 7 - y;
@@ -41,7 +41,7 @@ const fenToPieces = (fen) => {
     }
   });
   return pieces;
-};
+}
 
 const moveType = new GraphQLObjectType({
   name: 'move',
@@ -63,7 +63,7 @@ const pieceType = new GraphQLObjectType({
   },
 });
 
-const originalSquare = (piece, position) => {
+function originalSquare(piece, position) {
   return position.history({verbose: true}).reverse().reduce((square, move) => {
     if (move.san === 'O-O' && piece.name === 'r') {
       if (move.color === 'w' && square.toLowerCase() === 'f1') {
@@ -87,7 +87,7 @@ const originalSquare = (piece, position) => {
       return square;
     }
   }, piece.square);
-};
+}
 
 const positionType = new GraphQLObjectType({
   name: 'position',

@@ -11,57 +11,63 @@ const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
 const CENTER_OFFSET = { x: SQUARE_SIZE/2, y: SQUARE_SIZE/2 };
 
-const Square = ({color, coords}) =>
-  <div
-    style={{
-      position: 'absolute',
-      left: coords.x,
-      top: coords.y,
-      width: SQUARE_SIZE,
-      height: SQUARE_SIZE,
-      backgroundColor: color,
-    }}
-  />
+function Square({color, coords}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: coords.x,
+        top: coords.y,
+        width: SQUARE_SIZE,
+        height: SQUARE_SIZE,
+        backgroundColor: color,
+      }}
+    />
+  );
+}
 
-const isLight = (i) => {
+function isLight(i) {
   const rank = Math.floor(i / 8);
   if (rank % 2 === 0) {
     return i % 2 === 0;
   } else {
     return i % 2 === 1;
   }
-};
+}
 
-const SquareLayer = ({lightColor, darkColor}) =>
-  <div
-    style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: BOARD_SIZE,
-      height: BOARD_SIZE,
-    }}
-  >{Range(0, 64).map((i) => 
-    <Square
-      key={i}
-      color={isLight(i) ? lightColor : darkColor}
-      coords={{
-        x: (i % 8) * SQUARE_SIZE,
-        y: Math.floor(i / 8) * SQUARE_SIZE,
+function SquareLayer ({lightColor, darkColor}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: BOARD_SIZE,
+        height: BOARD_SIZE,
       }}
-    />
-  ).toJS()}</div>
+    >{Range(0, 64).map((i) => 
+      <Square
+        key={i}
+        color={isLight(i) ? lightColor : darkColor}
+        coords={{
+          x: (i % 8) * SQUARE_SIZE,
+          y: Math.floor(i / 8) * SQUARE_SIZE,
+        }}
+      />
+    ).toJS()}</div>
+  );
+}
 
-const squareToCoords = (square, offset={x: 0, y: 0}) => {
+function squareToCoords(square, offset={x: 0, y: 0}) {
   const rank = 7 - (parseInt(square[1]) - 1);
   const file = square.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
   return {
     x: file * SQUARE_SIZE + offset.x,
     y: rank * SQUARE_SIZE + offset.y,
   };
-};
+}
 
-const pieceSrc = (name, color) => {
+function pieceSrc (name, color) {
   color = color.slice(0,1).toLowerCase();
   if (/knight/i.test(name)) { 
     name = 'N';
@@ -72,7 +78,7 @@ const pieceSrc = (name, color) => {
   } catch (er) {
     return require('./images/cburnett/wK.svg');
   }
-};
+}
 
 class PieceLayer extends Component {
   constructor(props) {
@@ -126,7 +132,6 @@ class PieceLayer extends Component {
   }
 }
 
-
 class Piece extends Component {
   constructor(props) {
     super(props);
@@ -157,35 +162,38 @@ class Piece extends Component {
   }
 };
 
-const SVGLayer = ({children}) =>
-  <svg
-    width={BOARD_SIZE}
-    height={BOARD_SIZE}
-    style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-    }}
-  >
-    <defs>
-      <marker
-        id="arrowhead"
-        viewBox="0 0 10 10" 
-        orient="auto"
-        refX="0"
-        refY="5"
-        markerUnits="strokeWidth"
-        fill="#15781B"
-      >
-        <g>
-          <path d="M 0,0 L 0,10 L 8.5,5 z" />
-        </g>
-      </marker>
-    </defs>
-    {children}
-  </svg>
+function SVGLayer({children}) {
+  return (
+    <svg
+      width={BOARD_SIZE}
+      height={BOARD_SIZE}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+      }}
+    >
+      <defs>
+        <marker
+          id="arrowhead"
+          viewBox="0 0 10 10" 
+          orient="auto"
+          refX="0"
+          refY="5"
+          markerUnits="strokeWidth"
+          fill="#15781B"
+        >
+          <g>
+            <path d="M 0,0 L 0,10 L 8.5,5 z" />
+          </g>
+        </marker>
+      </defs>
+      {children}
+    </svg>
+  );
+}
 
-const Circle = ({square}) => {
+function Circle({square}) {
   const coords = squareToCoords(square, CENTER_OFFSET);
   return (
     <circle
@@ -197,9 +205,9 @@ const Circle = ({square}) => {
       fill="none"
     />
   );
-};
+}
 
-const Arrow = ({fromSquare, toSquare}) => {
+function Arrow({fromSquare, toSquare}) {
   if (fromSquare === toSquare) {
     return null;
   } else {
@@ -220,23 +228,26 @@ const Arrow = ({fromSquare, toSquare}) => {
       />
     );
   }
-};
+}
 
-export const Board = ({ children }) =>
-  <div
-    style={{
-      position: 'relative',
-      width: BOARD_SIZE,
-      height: BOARD_SIZE,
-    }}>
-    <SquareLayer
-      lightColor="#eee"
-      darkColor="#999"
-    />
-    { children }
-  </div>
+function Board({children}) {
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: BOARD_SIZE,
+        height: BOARD_SIZE,
+      }}>
+      <SquareLayer
+        lightColor="#eee"
+        darkColor="#999"
+      />
+      { children }
+    </div>
+  );
+}
 
-const fenToPieces = (fen) => {
+function fenToPieces(fen) {
   const pieces = [];
   fen.split(/\s/)[0].split('/').forEach((rowStr, y) => {
     let rank = 7 - y;
@@ -256,9 +267,9 @@ const fenToPieces = (fen) => {
     });
   });
   return pieces;
-};
+}
 
-const originalSquare = (piece, position) => {
+function originalSquare(piece, position) {
   return position.history({verbose: true}).reverse().reduce((square, move) => {
     if (move.san === 'O-O' && piece.name === 'r') {
       if (move.color === 'w' && square.toLowerCase() === 'f1') {
@@ -282,9 +293,9 @@ const originalSquare = (piece, position) => {
       return square;
     }
   }, piece.square);
-};
+}
 
-const pgnToPositions = (pgn) => {
+function pgnToPositions(pgn) {
   const game = new Chess();
   game.load_pgn(pgn);
   const gameHistory = game.history({ verbose: true });
@@ -309,7 +320,7 @@ const pgnToPositions = (pgn) => {
   });
   positions.push(pieces);
   return positions;
-};
+}
 
 import fischerImmortal from './fischer-immortal.pgn';
 
