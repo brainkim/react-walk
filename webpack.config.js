@@ -1,20 +1,23 @@
 var path = require('path');
 var webpack = require('webpack');
-var HtmlWebpackPlugin = require('html-webpack-plugin');
+
+var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 module.exports = {
-  entry: [
-    'webpack-dev-server/client?http://localhost:1337',
-    'webpack/hot/only-dev-server',
-    './src/index',
-  ],
+  entry: { 
+    chess: path.join(__dirname, './src/index'),
+  },
   output: {
     path: path.join(__dirname, 'dist'),
-    filename: 'bundle.js',
+    filename: '[name].js',
     publicPath: '/static/',
   },
+  devtool: "source-map",
   plugins: [
     new webpack.HotModuleReplacementPlugin(),
+    new ExtractTextPlugin(
+      '[name].css',
+    ),
   ],
   module: {
     loaders: [
@@ -22,6 +25,10 @@ module.exports = {
         test: /\.js$/,
         loaders: ['react-hot', 'babel'],
         include: path.join(__dirname, 'src'),
+      },
+      {
+        test: /\.css$/,
+        loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
       },
       {
         test: /\.svg$/,
@@ -37,5 +44,4 @@ module.exports = {
       },
     ]
   },
-  devtool: "source-map",
 };
