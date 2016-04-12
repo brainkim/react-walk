@@ -5,7 +5,11 @@ var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 module.exports = {
   entry: { 
-    chess: path.join(__dirname, './src/index'),
+    chess: [
+      'webpack-dev-server/client?http://localhost:1337',
+      'webpack/hot/only-dev-server',
+      path.resolve(__dirname, './src/index'),
+    ],
   },
   output: {
     path: path.join(__dirname, 'dist'),
