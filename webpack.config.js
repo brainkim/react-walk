@@ -3,24 +3,38 @@ var webpack = require('webpack');
 
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 module.exports = {
   entry: { 
-    chess: [
-      'webpack-dev-server/client?http://localhost:1337',
-      'webpack/hot/only-dev-server',
-      path.resolve(__dirname, './src/index'),
-    ],
+    chess: isProduction
+      ? [path.resolve(__dirname, './src/index')]
+      : [
+        'webpack-dev-server/client?http://localhost:1337',
+        'webpack/hot/only-dev-server',
+        path.resolve(__dirname, './src/index'),
+      ],
   },
   output: {
     path: path.join(__dirname, 'dist'),
-    filename: '[name].js',
-    publicPath: '/static/',
+    publicPath: '/static',
+    filename: isProduction ? '[name].[hash].js' : '[name].js',
   },
-  devtool: "source-map",
-  plugins: [
-    new webpack.HotModuleReplacementPlugin(),
-    new ExtractTextPlugin('[name].css'),
-  ],
+  // devtool: "source-map",
+  plugins: isProduction
+    ? [
+      new webpack.DefinePlugin({
+        'process.env': {
+          'NODE_ENV': JSON.stringify('production')
+        }
+      }),
+      new webpack.optimize.OccurrenceOrderPlugin(true),
+      new webpack.optimize.UglifyJsPlugin(),
+      new ExtractTextPlugin('[name].css'),
+    ]
+    : [
+      new webpack.HotModuleReplacementPlugin(),
+    ],
   module: {
     loaders: [
       {
