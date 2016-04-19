@@ -124,8 +124,8 @@ class PieceLayer extends Component {
         key: c.key,
         data: c,
         style: {
-          x: spring(x, {stiffness: 300, damping: 30}),
-          y: spring(y, {stiffness: 300, damping: 30}),
+          x: spring(x, {stiffness: 300, damping: 34}),
+          y: spring(y, {stiffness: 300, damping: 34}),
         },
       };
     });
