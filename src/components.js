@@ -35,7 +35,7 @@ function isLight(i) {
   }
 }
 
-function SquareLayer ({lightColor, darkColor}) {
+function SquareLayer({lightColor, darkColor}) {
   return (
     <div
       style={{
@@ -67,7 +67,7 @@ function squareToCoords(square, offset={x: 0, y: 0}) {
   };
 }
 
-function pieceSrc (name, color) {
+function pieceSrc(name, color) {
   color = color.slice(0,1).toLowerCase();
   if (/knight/i.test(name)) { 
     name = 'N';
