@@ -107,6 +107,7 @@ class PieceLayer extends Component {
                 top: 0,
                 left: 0,
                 transform: `translate(${style.x}px,${style.y}px)`,
+                opacity: style.opacity,
               }}
             >{data}</div>
           )}</div>
@@ -124,11 +125,22 @@ class PieceLayer extends Component {
         key: c.key,
         data: c,
         style: {
-          x: spring(x, {stiffness: 300, damping: 34}),
-          y: spring(y, {stiffness: 300, damping: 34}),
+          x: spring(x, {stiffness: 300, damping: 30}),
+          y: spring(y, {stiffness: 300, damping: 30}),
+          opacity: 1,
         },
       };
     });
+  }
+
+  pieceWillLeave({key, data, style}) {
+    const {square} = data.props;
+    const {x, y} = squareToCoords(square);
+    return {
+      x,
+      y,
+      opacity: spring(0, {stiffness: 300, damping: 30}),
+    };
   }
 }
 
