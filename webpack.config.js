@@ -20,7 +20,7 @@ module.exports = {
     publicPath: '/',
     filename: isProduction ? '[name].[hash].js' : '[name].js',
   },
-  // devtool: "source-map",
+  devtool: "source-map",
   plugins: isProduction
     ? [
       new webpack.DefinePlugin({

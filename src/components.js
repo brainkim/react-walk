@@ -7,6 +7,8 @@ import Chess from 'chess.js';
 
 import debounce from 'lodash.debounce';
 
+import model from './model';
+
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE / 8;
 const CENTER_OFFSET = { x: SQUARE_SIZE/2, y: SQUARE_SIZE/2 };

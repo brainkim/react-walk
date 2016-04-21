@@ -1,13 +1,13 @@
 FEN {
 
-Position = piecePlacement turn castling enPassantTarget plyClock moveNumber
+Position = piecePlacement turn castlings enPassantTarget plyClock moveNumber
 
 piecePlacement = piecePlacementRank ("/" piecePlacementRank)*
 piecePlacementRank = (digit | piece)*
 
 turn = white | black
 
-castling
+castlings
   = letter+
   | empty
 
