@@ -2,8 +2,8 @@ import IM, { Record, Map, List, Set } from 'immutable';
 import ohm from 'ohm-js';
 import fen from './fen.ohm';
 
-const RANK_LABELS = new List([1,2,3,4,5,6,7,8]);
-const FILE_LABELS = new List(['a','b','c','d','e','f','g','h']);
+const RANK_LABELS = List(['1','2','3','4','5','6','7','8']);
+const FILE_LABELS = List(['a','b','c','d','e','f','g','h']);
 
 const PLAYERS = {
   WHITE: 'WHITE',
@@ -18,7 +18,6 @@ const fenSemantics = fenGrammar.semantics();
 
 fenSemantics.addOperation('data', {
   Position(piecePlacement, turn, castlings, enPassantTarget, plyClock, moveNumber) {
-    console.log(castlings.data().toJS());
     return Map({
       pieces: piecePlacement.data(),
       turn: turn.data(),
@@ -37,8 +36,8 @@ fenSemantics.addOperation('data', {
         const skip = parseInt(character);
         if (Number.isNaN(skip)) {
           const color = character === character.toUpperCase()
-            ? 'white'
-            : 'black';
+            ? PLAYERS.WHITE
+            : PLAYERS.BLACK;
           const square = `${fileLabel}${rankLabel}`;
           pieceMap[square] = Map({
             color,
@@ -60,7 +59,14 @@ fenSemantics.addOperation('data', {
     return Map(pieceMap);
   },
   turn(color) {
-    return color.data();
+    switch (color.data()) {
+      case 'w':
+        return PLAYERS.WHITE;
+      case 'b':
+        return PLAYERS.BLACK;
+      default:
+        return null;
+    }
   },
   castlings(letters) {
     if (letters.isIteration) {
@@ -177,7 +183,7 @@ function getRanksBetween(r1, r2) {
 
 function getSquaresBetween(square1, square2) {
   const files = getFilesBetween(square1[0], square2[0]);
-  const ranks = getRanksBetween(parseInt(square1[1]), parseInt(square2[1]));
+  const ranks = getRanksBetween(square1[1], square2[1]);
   if (files == null || ranks == null) {
     return new List(); 
   } else if (files.isEmpty()) {
@@ -199,26 +205,26 @@ function getSquaresBetween(square1, square2) {
 }
 
 function getCastlingSquares(move) {
-  const kingSquare = move['player'] === PLAYERS.WHITE
+  const kingSquare = move.get('player') === PLAYERS.WHITE
     ? 'e1'
     : 'e8';
-  const rookSquare = move['player'] === PLAYERS.WHITE
-    ? move['side'] === KINGSIDE
-      ? 'a1'
-      : 'h1'
-    : move['side'] === QUEENSIDE
-      ? 'a8'
-      : 'h8';
+  const rookSquare = move.get('player') === PLAYERS.WHITE
+    ? move.get('side') === KINGSIDE
+      ? 'h1'
+      : 'a1'
+    : move.get('side') === KINGSIDE
+      ? 'h8'
+      : 'a8';
   return { kingSquare, rookSquare };
 }
 
 function canCastle(pieces, turn, castlings, move) {
   const {kingSquare, rookSquare} = getCastlingSquares(move);
   return (
-    turn === move['player'] &&
-    castlings[turn].has(move['side']) && 
+    turn === move.get('player') &&
+    castlings.get(turn).has(move.get('side')) && 
     getSquaresBetween(kingSquare, rookSquare).every((square) => {
-      return pieces[square] == null;
+      return pieces.get(square) == null;
     })
   );
 }
