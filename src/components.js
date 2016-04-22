@@ -1,7 +1,7 @@
-import React, { Component, Children } from 'react';
-import { Range } from 'immutable';
+import React, {Component, Children} from 'react';
+import {Range} from 'immutable';
 
-import { spring, TransitionMotion } from 'react-motion';
+import {spring, TransitionMotion} from 'react-motion';
 
 import Chess from 'chess.js';
 
@@ -10,8 +10,8 @@ import debounce from 'lodash.debounce';
 import model from './model';
 
 const BOARD_SIZE = 600;
-const SQUARE_SIZE = BOARD_SIZE / 8;
-const CENTER_OFFSET = { x: SQUARE_SIZE/2, y: SQUARE_SIZE/2 };
+const SQUARE_SIZE = BOARD_SIZE/8;
+const CENTER_OFFSET = {x: SQUARE_SIZE/2, y: SQUARE_SIZE/2};
 
 function Square({color, coords}) {
   return (
@@ -29,7 +29,7 @@ function Square({color, coords}) {
 }
 
 function isLight(i) {
-  const rank = Math.floor(i / 8);
+  const rank = Math.floor(i/8);
   if (rank % 2 === 0) {
     return i % 2 === 0;
   } else {
@@ -46,17 +46,18 @@ function SquareLayer({lightColor, darkColor}) {
         left: 0,
         width: BOARD_SIZE,
         height: BOARD_SIZE,
-      }}
-    >{Range(0, 64).map((i) => 
-      <Square
-        key={i}
-        color={isLight(i) ? lightColor : darkColor}
-        coords={{
-          x: (i % 8) * SQUARE_SIZE,
-          y: Math.floor(i / 8) * SQUARE_SIZE,
-        }}
-      />
-    ).toJS()}</div>
+      }}>
+      {Range(0, 64).map((i) => 
+        <Square
+          key={i}
+          color={isLight(i) ? lightColor : darkColor}
+          coords={{
+            x: (i % 8) * SQUARE_SIZE,
+            y: Math.floor(i / 8) * SQUARE_SIZE,
+          }}
+          />
+      ).toJS()}
+    </div>
   );
 }
 
@@ -82,13 +83,8 @@ function pieceSrc(name, color) {
   }
 }
 
+const pieceSpringConfig = {stiffness: 300, damping: 30};
 class PieceLayer extends Component {
-  constructor(props) {
-    super(props);
-
-    this.pieceKeyCache = null;
-  }
-
   render() {
     return (
       <TransitionMotion
@@ -100,26 +96,28 @@ class PieceLayer extends Component {
               width: '100%',
               height: '100%',
               position: 'relative',
-            }}
-          >{styles.map(({key, style, data}) =>
-            <div
-              key={key}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                transform: `translate(${style.x}px,${style.y}px)`,
-                opacity: style.opacity,
-              }}
-            >{data}</div>
-          )}</div>
+            }}>
+            {styles.map(({key, style, data}) =>
+              <div
+                key={key}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `translate(${style.x}px,${style.y}px)`,
+                  opacity: style.opacity,
+                }}>
+                {data}
+              </div>
+            )}
+          </div>
         }
       </TransitionMotion>
     );
   }
 
   getStyles() {
-    const { children } = this.props;
+    const {children} = this.props;
     return Children.map(children, (c) => {
       const {square} = c.props;
       const {x, y} = squareToCoords(square);
@@ -127,8 +125,8 @@ class PieceLayer extends Component {
         key: c.key,
         data: c,
         style: {
-          x: spring(x, {stiffness: 300, damping: 30}),
-          y: spring(y, {stiffness: 300, damping: 30}),
+          x: spring(x, pieceSpringConfig),
+          y: spring(y, pieceSpringConfig),
           opacity: 1,
         },
       };
@@ -141,7 +139,7 @@ class PieceLayer extends Component {
     return {
       x,
       y,
-      opacity: spring(0, {stiffness: 300, damping: 30}),
+      opacity: spring(0, pieceSpringConfig),
     };
   }
 }
@@ -160,8 +158,7 @@ class Piece extends Component {
           width: SQUARE_SIZE,
           height: SQUARE_SIZE,
           cursor: 'pointer',
-        }}
-        >
+        }}>
         <img
           style={{
             width: SQUARE_SIZE,
@@ -185,8 +182,7 @@ function SVGLayer({children}) {
         position: 'absolute',
         top: 0,
         left: 0,
-      }}
-    >
+      }}>
       <defs>
         <marker
           id="arrowhead"
@@ -195,8 +191,7 @@ function SVGLayer({children}) {
           refX="0"
           refY="5"
           markerUnits="strokeWidth"
-          fill="#15781B"
-        >
+          fill="#15781B">
           <g>
             <path d="M 0,0 L 0,10 L 8.5,5 z" />
           </g>
@@ -256,7 +251,7 @@ function Board({children}) {
         lightColor="#eee"
         darkColor="#999"
       />
-      { children }
+      {children}
     </div>
   );
 }
@@ -312,7 +307,7 @@ function originalSquare(piece, position) {
 function pgnToPositions(pgn) {
   const game = new Chess();
   game.load_pgn(pgn);
-  const gameHistory = game.history({ verbose: true });
+  const gameHistory = game.history({verbose: true});
   const positions = [];
   gameHistory.forEach((move, i) => {
     const position = gameHistory
@@ -360,21 +355,21 @@ export class App extends Component {
   }
   
   goBack() {
-    const { positions, moveIndex } = this.state;
+    const {positions, moveIndex} = this.state;
     this.setState({ 
       moveIndex: Math.max(moveIndex - 1, 0),
     });
   }
 
   goForward() {
-    const { positions, moveIndex } = this.state;
+    const {positions, moveIndex} = this.state;
     this.setState({
       moveIndex: Math.min(moveIndex + 1, positions.length - 1),
     });
   }
 
   render() {
-    const { positions, moveIndex } = this.state;
+    const {positions, moveIndex} = this.state;
     const position = positions[moveIndex];
 
     return (
@@ -387,8 +382,7 @@ export class App extends Component {
           justifyContent: 'center',
           overflow: 'hidden',
           position: 'relative',
-        }}
-      >
+        }}>
         <Board>
           {/*
           <SVGLayer>
