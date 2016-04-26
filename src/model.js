@@ -1,4 +1,4 @@
-import IM, { Record, Map, List, Set } from 'immutable';
+import im, {Record, Map, List, Set} from 'immutable';
 import ohm from 'ohm-js';
 import fen from './fen.ohm';
 
@@ -99,62 +99,63 @@ fenSemantics.addOperation('data', {
   },
 });
 
-function parseFen(fen) {
+export function parseFen(fen) {
   const match = fenGrammar.match(fen);
   if (match.succeeded()) {
     return fenSemantics(match).data();
   } else {
     throw new Error(match.message);
   }
-};
+}
 
-const initialPosition = IM.fromJS({
-  pieces: {
-    'a8': 'r',
-    'b8': 'n',
-    'c8': 'b',
-    'd8': 'q',
-    'e8': 'k',
-    'f8': 'b',
-    'g8': 'n',
-    'h8': 'r',
+// const initialPosition = IM.fromJS({
+//   pieces: {
+//     'a8': 'r',
+//     'b8': 'n',
+//     'c8': 'b',
+//     'd8': 'q',
+//     'e8': 'k',
+//     'f8': 'b',
+//     'g8': 'n',
+//     'h8': 'r',
+// 
+//     'a7': 'p',
+//     'b7': 'p',
+//     'c7': 'p',
+//     'd7': 'p',
+//     'e7': 'p',
+//     'f7': 'p',
+//     'g7': 'p',
+//     'h7': 'p',
+// 
+//     'a2': 'p',
+//     'b2': 'p',
+//     'c2': 'p',
+//     'd2': 'p',
+//     'e2': 'p',
+//     'f2': 'p',
+//     'g2': 'p',
+//     'h2': 'p',
+// 
+//     'a1': 'r',
+//     'b1': 'n',
+//     'c1': 'b',
+//     'd1': 'q',
+//     'e1': 'k',
+//     'f1': 'b',
+//     'g1': 'n',
+//     'h1': 'r',
+//   },
+//   turn: 'w',
+//   castlings: {
+//     [PLAYERS.WHITE]: Set(KINGSIDE, QUEENSIDE),
+//     [PLAYERS.BLACK]: Set(KINGSIDE, QUEENSIDE),
+//   },
+//   enPassantTarget: null,
+//   shotClock: 0,
+//   fullMoveNumber: 0,
+// });
 
-    'a7': 'p',
-    'b7': 'p',
-    'c7': 'p',
-    'd7': 'p',
-    'e7': 'p',
-    'f7': 'p',
-    'g7': 'p',
-    'h7': 'p',
-
-    'a2': 'p',
-    'b2': 'p',
-    'c2': 'p',
-    'd2': 'p',
-    'e2': 'p',
-    'f2': 'p',
-    'g2': 'p',
-    'h2': 'p',
-
-    'a1': 'r',
-    'b1': 'n',
-    'c1': 'b',
-    'd1': 'q',
-    'e1': 'k',
-    'f1': 'b',
-    'g1': 'n',
-    'h1': 'r',
-  },
-  turn: 'w',
-  castlings: {
-    [PLAYERS.WHITE]: new Set(KINGSIDE, QUEENSIDE),
-    [PLAYERS.BLACK]: new Set(KINGSIDE, QUEENSIDE),
-  },
-  enPassantTarget: null,
-  shotClock: 0,
-  fullMoveNumber: 0,
-});
 function getFilesBetween(f1, f2) {
   let start = FILE_LABELS.indexOf(f1);
   let end = FILE_LABELS.indexOf(f2);
@@ -181,11 +182,11 @@ function getRanksBetween(r1, r2) {
   }
 }
 
-function getSquaresBetween(square1, square2) {
+export function getSquaresBetween(square1, square2) {
   const files = getFilesBetween(square1[0], square2[0]);
   const ranks = getRanksBetween(square1[1], square2[1]);
   if (files == null || ranks == null) {
-    return new List(); 
+    return List(); 
   } else if (files.isEmpty()) {
     return ranks.map((r) => {
       return `${square1[0]}${r}`;
@@ -200,7 +201,7 @@ function getSquaresBetween(square1, square2) {
       return `${f}${r}`;
     });
   } else {
-    return new List();
+    return List();
   }
 }
 
@@ -218,7 +219,7 @@ function getCastlingSquares(move) {
   return { kingSquare, rookSquare };
 }
 
-function canCastle(pieces, turn, castlings, move) {
+export function canCastle(pieces, turn, castlings, move) {
   const {kingSquare, rookSquare} = getCastlingSquares(move);
   return (
     turn === move.get('player') &&
@@ -234,7 +235,7 @@ function updatePieces(position, move) {
 }
 
 function updatePosition(position, move) {
-  return new Map({
+  return Map({
     pieces: updatePieces(position, move),
   });
 }
