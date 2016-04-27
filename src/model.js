@@ -4,6 +4,7 @@ import fen from './fen.ohm';
 
 const RANK_LABELS = List(['1','2','3','4','5','6','7','8']);
 const FILE_LABELS = List(['a','b','c','d','e','f','g','h']);
+const SQUARES = Set(RANK_LABELS.flatMap((r) => FILE_LABELS.map(f => `${f}${r}`)));
 
 const PLAYERS = {
   WHITE: 'WHITE',
@@ -219,11 +220,134 @@ function getCastlingSquares(move) {
   return { kingSquare, rookSquare };
 }
 
-export function canCastle(pieces, turn, castlings, move) {
+function getOpposingPlayer(player) {
+  switch (player) {
+    case PLAYERS.WHITE:
+      return PLAYERS.BLACK;
+    case PLAYERS.BLACK:
+      return PLAYERS.WHITE;
+  }
+}
+
+function getCoordsFromSquare(square) {
+  const x = FILE_LABELS.indexOf(square[0]);
+  const y = RANK_LABELS.indexOf(square[1]);
+  if (x != null && y != null) {
+    return {x, y};
+  } else {
+    return null;
+  }
+}
+
+function getSquareFromCoords({x, y}) {
+  return FILE_LABELS.get(x) + RANK_LABELS.get(y);
+}
+
+function getPawnSquares(square, player) {
+  const coords = getCoordsFromSquare(square);
+  return SQUARES.filter((square1) => {
+    const coords1 = getCoordsFromSquare(square1);
+    return (
+      square !== square1
+      && (
+        (
+          coords1.y - coords.y === (player === PLAYERS.WHITE ? 1 : -1)
+          && Math.abs(coords.x - coords1.x) <= 1
+        )
+        || (
+          coords.y === (player === PLAYERS.WHITE ? 1 : 6)
+          && coords.x === coords1.x
+          && coords1.y - coords.y === (player === PLAYERS.WHITE ? 2 : -2)
+        )
+      )
+    );
+  });
+}
+
+function getDiagonalSquares(square) {
+  const coords = getCoordsFromSquare(square);
+  return SQUARES.filter((square1) => {
+    const coords1 = getCoordsFromSquare(square1);
+    return (
+      square !== square1
+      && Math.abs(coords.x - coords1.x) === Math.abs(coords.y - coords1.y)
+    );
+  });
+}
+
+function getOrthogonalSquares(square) {
+  const coords = getCoordsFromSquare(square);
+  return SQUARES.filter((square1) => {
+    const coords1 = getCoordsFromSquare(square1);
+    return (
+      square !== square1 && (coords.x === coords1.x || coords.y === coords1.y)
+    );
+  });
+}
+
+function getKnightSquares(square) {
+  const coords = getCoordsFromSquare(square);
+  return SQUARES.filter((square1) => {
+    const coords1 = getCoordsFromSquare(square1);
+    const xDistance = Math.abs(coords.x - coords1.x);
+    const yDistance = Math.abs(coords.y - coords1.y);
+    return (
+      square !== square1
+      && (
+        xDistance === 2 && yDistance === 1
+        || xDistance === 1 && yDistance === 2
+      )
+    );
+  });
+}
+
+function getKingSquares(square) {
+  const coords = getCoordsFromSquare(square);
+  return getDiagonalSquares(square)
+    .union(getOrthogonalSquares(square))
+    .filter((square1) => {
+      const coords1 = getCoordsFromSquare(square1);
+      return (
+        square !== square1
+        && Math.abs(coords.x - coords1.x) <= 1
+        && Math.abs(coords.y - coords1.y) <= 1
+      );
+    });
+}
+
+function getMovement(piece) {
+  const square = piece.get('square');
+  const player = piece.get('player');
+  switch (piece.get('type')) {
+    case 'p':
+      return getPawnSquares(square, player);
+    case 'n':
+      return getKnightSquares(square);
+    case 'b':
+      return getDiagonalSquares(square);
+    case 'r':
+      return getOrthogonalSquares(square);
+    case 'q':
+      return getDiagonalSquares(square)
+        .union(getOrthogonalSquares(square));
+    case 'k':
+      return getKingSquares(square);
+  }
+}
+
+function isAttacked(pieces, player, square) {
+  const opposingPlayer = getOpposingPlayer(player);
+  const opposingPieces = pieces.filter((piece) => piece.player === opposingPlayer);
+  const attackingPieces = opposingPieces.filter((piece) => getAttacks(piece).includes(square));
+}
+
+function inCheck(pieces, player) {
+}
+
+export function canCastle(pieces, castlings, move) {
   const {kingSquare, rookSquare} = getCastlingSquares(move);
   return (
-    turn === move.get('player') &&
-    castlings.get(turn).has(move.get('side')) && 
+    castlings.get(move.get('player')).has(move.get('side')) && 
     getSquaresBetween(kingSquare, rookSquare).every((square) => {
       return pieces.get(square) == null;
     })
