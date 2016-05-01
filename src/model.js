@@ -11,8 +11,10 @@ const PLAYERS = {
   BLACK: 'BLACK',
 };
 
-const KINGSIDE = 'O-O';
-const QUEENSIDE = 'O-O-O';
+const SIDES = {
+  KINGSIDE: 'O-O',
+  QUEENSIDE: 'O-O-O',
+};
 
 const fenGrammar = ohm.grammar(fen);
 const fenSemantics = fenGrammar.semantics();
@@ -74,12 +76,12 @@ fenSemantics.addOperation('data', {
       letters = letters.data();
       return Map({
         [PLAYERS.WHITE]: Set([
-          letters.indexOf('K') !== -1 ? KINGSIDE : null,
-          letters.indexOf('Q') !== -1 ? QUEENSIDE : null,
+          letters.indexOf('K') !== -1 ? SIDES.KINGSIDE : null,
+          letters.indexOf('Q') !== -1 ? SIDES.QUEENSIDE : null,
         ]),
         [PLAYERS.BLACK]: Set([
-          letters.indexOf('k') !== -1 ? KINGSIDE : null,
-          letters.indexOf('q') !== -1 ? QUEENSIDE : null,
+          letters.indexOf('k') !== -1 ? SIDES.KINGSIDE : null,
+          letters.indexOf('q') !== -1 ? SIDES.QUEENSIDE : null,
         ])
       });
     } else {
@@ -141,7 +143,7 @@ export function getSquaresBetween(square1, square2) {
       return getSquareFromCoords({x, y});
     }, ys).skip(1);
   } else {
-    return List();
+    return new List();
   }
 }
 
@@ -178,9 +180,9 @@ function getOrthogonalSquares(square) {
 }
 
 const Piece = new Record({
-  key: null,
   square: null,
   player: null,
+  key: null,
 });
 
 class Pawn extends Piece {
@@ -408,10 +410,30 @@ const inCheck = new Map({
   'h8': new King({square: 'h8', player: PLAYERS.BLACK}),
 });
 
-class Position extends new Record({
+const _Position = new Record({
   pieces: initialPieces,
   turn: PLAYERS.WHITE,
-}) {
+  castlings: new Map({
+    [PLAYERS.WHITE]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
+    [PLAYERS.BLACK]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
+  }),
+});
+
+function getCastlingSquares(player, side) {
+  const kingSquare = player === PLAYERS.WHITE
+    ? 'e1'
+    : 'e8';
+  const rookSquare = player === PLAYERS.WHITE
+    ? side === SIDES.KINGSIDE
+      ? 'h1'
+      : 'a1'
+    : side === SIDES.KINGSIDE
+      ? 'h8'
+      : 'a8';
+  return {kingSquare, rookSquare};
+}
+
+class Position extends _Position {
   inCheck() {
     const kingSquare = this.pieces.filter((piece) => {
       return piece.player === this.turn && piece.constructor === King;
@@ -428,7 +450,7 @@ class Position extends new Record({
   }
 
   getPseudoLegalMoves() {
-    return this.pieces.filter((piece) => {
+    const pieceMoves = this.pieces.filter((piece) => {
       return piece.player === this.turn;
     }).map((piece, fromSquare) => {
       const toSquares = piece.getPseudoLegalMoves(this.pieces);
@@ -438,10 +460,40 @@ class Position extends new Record({
     }).reduce((moves1, moves) => {
       return moves1.concat(moves);
     });
+
+    const castleMoves = this.getPseudoLegalCastleMoves();
+
+    return pieceMoves.concat(castleMoves);
+  }
+
+  getPseudoLegalCastleMoves() {
+    if (!this.inCheck()) {
+      const enemyAttacks = this.pieces.filter((piece) => {
+        return piece.player === getOpposingPlayer(this.turn);
+      }).map((piece) => {
+        return piece.getPseudoLegalMoves(this.pieces);
+      }).reduce((enemyAttacks, attacks) => {
+        return enemyAttacks.union(attacks);
+      });
+
+      return new List(this.castlings.get(this.turn).filter((side) => {
+        const {kingSquare, rookSquare} = getCastlingSquares(this.turn, side);
+        return getSquaresBetween(kingSquare, rookSquare).every((square) => {
+          return (
+            this.pieces.get(square) == null
+            && !enemyAttacks.includes(square)
+          );
+        });
+      }));
+    } else {
+      return new List();
+    }
   }
 
   makePseudoLegalMove(move) {
     return this.update('pieces', (pieces) => {
+      const to = move.get('to');
+      const from = move.get('from');
       const movingPiece = pieces.get(move.get('from')).set('square', move.get('to'));
       return pieces.remove(move.get('from')).set(move.get('to'), movingPiece);
     });
@@ -504,12 +556,21 @@ class Position extends new Record({
   }
 }
 
-const position = new Position({pieces: inCheck, turn: PLAYERS.BLACK});
-// console.log('\n' + position.ascii());
+const castleCity = new Map({ 
+  'a1': new Rook({square: 'a1', player: PLAYERS.WHITE}),
+  'h1': new Rook({square: 'h1', player: PLAYERS.WHITE}),
+  'e1': new King({square: 'e1', player: PLAYERS.WHITE}),
 
-// console.log(position.inCheck());
-// console.log(position.makePseudoLegalMove(position.getPseudoLegalMoves().first()).inCheck());
-console.log(position.getLegalMoves().toJS());
+  'a8': new Rook({square: 'a8', player: PLAYERS.BLACK}),
+  'h8': new Rook({square: 'h8', player: PLAYERS.BLACK}),
+  'e8': new King({square: 'e8', player: PLAYERS.WHITE}),
+});
+
+// const position = new Position({pieces: inCheck, turn: PLAYERS.BLACK});
+const position = new Position({pieces: castleCity, turn: PLAYERS.BLACK});
+console.log(position.getPseudoLegalMoves().toJS());
+
+// console.log('\n' + position.ascii());
 // const position1 = position.makePseudoLegalMove(new Map({from: 'h8', to: 'h7'}));
 // console.log('\n'+position1.ascii());
 // console.log(position1.inCheck());
@@ -528,29 +589,6 @@ console.log(position.getLegalMoves().toJS());
 //  'd5': new Pawn({square: 'd5', player: PLAYERS.BLACK}),
 //  'f5': new Pawn({square: 'f5', player: PLAYERS.BLACK}),
 // })).toJS());
-
-// function getCastlingSquares(move) {
-//   const kingSquare = move.get('player') === PLAYERS.WHITE
-//     ? 'e1'
-//     : 'e8';
-//   const rookSquare = move.get('player') === PLAYERS.WHITE
-//     ? move.get('side') === KINGSIDE
-//       ? 'h1'
-//       : 'a1'
-//     : move.get('side') === KINGSIDE
-//       ? 'h8'
-//       : 'a8';
-//   return { kingSquare, rookSquare };
-// }
-// export function canCastle(pieces, castlings, move) {
-//   const {kingSquare, rookSquare} = getCastlingSquares(move);
-//   return (
-//     castlings.get(move.get('player')).has(move.get('side')) && 
-//     getSquaresBetween(kingSquare, rookSquare).every((square) => {
-//       return pieces.get(square) == null;
-//     })
-//   );
-// }
 
 const defaultStartingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const defaultStartingPosition = parseFen(defaultStartingFen);
