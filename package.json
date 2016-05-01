@@ -23,6 +23,7 @@
     "karma": "0.13.22",
     "karma-chrome-launcher": "0.2.3",
     "karma-jasmine": "0.3.8",
+    "karma-sourcemap-loader": "0.3.7",
     "karma-webpack": "1.7.0",
     "nodemon": "1.9.1",
     "raw-loader": "0.5.1",
