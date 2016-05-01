@@ -1,4 +1,4 @@
-import im, {Record, Map, List, Set} from 'immutable';
+import im, {Record, Map, List, Set, Range, Repeat} from 'immutable';
 import ohm from 'ohm-js';
 import fen from './fen.ohm';
 
@@ -109,126 +109,6 @@ export function parseFen(fen) {
   }
 }
 
-// const initialPosition = IM.fromJS({
-//   pieces: {
-//     'a8': 'r',
-//     'b8': 'n',
-//     'c8': 'b',
-//     'd8': 'q',
-//     'e8': 'k',
-//     'f8': 'b',
-//     'g8': 'n',
-//     'h8': 'r',
-// 
-//     'a7': 'p',
-//     'b7': 'p',
-//     'c7': 'p',
-//     'd7': 'p',
-//     'e7': 'p',
-//     'f7': 'p',
-//     'g7': 'p',
-//     'h7': 'p',
-// 
-//     'a2': 'p',
-//     'b2': 'p',
-//     'c2': 'p',
-//     'd2': 'p',
-//     'e2': 'p',
-//     'f2': 'p',
-//     'g2': 'p',
-//     'h2': 'p',
-// 
-//     'a1': 'r',
-//     'b1': 'n',
-//     'c1': 'b',
-//     'd1': 'q',
-//     'e1': 'k',
-//     'f1': 'b',
-//     'g1': 'n',
-//     'h1': 'r',
-//   },
-//   turn: 'w',
-//   castlings: {
-//     [PLAYERS.WHITE]: Set(KINGSIDE, QUEENSIDE),
-//     [PLAYERS.BLACK]: Set(KINGSIDE, QUEENSIDE),
-//   },
-//   enPassantTarget: null,
-//   shotClock: 0,
-//   fullMoveNumber: 0,
-// });
-
-function getFilesBetween(f1, f2) {
-  let start = FILE_LABELS.indexOf(f1);
-  let end = FILE_LABELS.indexOf(f2);
-  if (start > end) {
-    [start, end] = [end, start];
-  }
-  if (start !== -1 && end !== -1) {
-    return FILE_LABELS.slice(start + 1, end);
-  } else {
-    return null;
-  }
-}
-
-function getRanksBetween(r1, r2) {
-  let start = RANK_LABELS.indexOf(r1);
-  let end = RANK_LABELS.indexOf(r2);
-  if (start > end) {
-    [start, end] = [end, start];
-  }
-  if (start !== -1 && end !== -1) {
-    return RANK_LABELS.slice(start + 1, end);
-  } else {
-    return null;
-  }
-}
-
-export function getSquaresBetween(square1, square2) {
-  const files = getFilesBetween(square1[0], square2[0]);
-  const ranks = getRanksBetween(square1[1], square2[1]);
-  if (files == null || ranks == null) {
-    return List(); 
-  } else if (files.isEmpty()) {
-    return ranks.map((r) => {
-      return `${square1[0]}${r}`;
-    });
-  } else if (ranks.isEmpty()) {
-    return files.map((f) => {
-      return `${f}${square1[1]}`;
-    });
-  } else if (files.count() === ranks.count()) {
-    return files.map((f, i) => {
-      const r = ranks.get(i);
-      return `${f}${r}`;
-    });
-  } else {
-    return List();
-  }
-}
-
-function getCastlingSquares(move) {
-  const kingSquare = move.get('player') === PLAYERS.WHITE
-    ? 'e1'
-    : 'e8';
-  const rookSquare = move.get('player') === PLAYERS.WHITE
-    ? move.get('side') === KINGSIDE
-      ? 'h1'
-      : 'a1'
-    : move.get('side') === KINGSIDE
-      ? 'h8'
-      : 'a8';
-  return { kingSquare, rookSquare };
-}
-
-function getOpposingPlayer(player) {
-  switch (player) {
-    case PLAYERS.WHITE:
-      return PLAYERS.BLACK;
-    case PLAYERS.BLACK:
-      return PLAYERS.WHITE;
-  }
-}
-
 function getCoordsFromSquare(square) {
   const x = FILE_LABELS.indexOf(square[0]);
   const y = RANK_LABELS.indexOf(square[1]);
@@ -243,25 +123,37 @@ function getSquareFromCoords({x, y}) {
   return FILE_LABELS.get(x) + RANK_LABELS.get(y);
 }
 
-function getPawnSquares(square, player) {
-  const coords = getCoordsFromSquare(square);
-  return SQUARES.filter((square1) => {
-    const coords1 = getCoordsFromSquare(square1);
-    return (
-      square !== square1
-      && (
-        (
-          coords1.y - coords.y === (player === PLAYERS.WHITE ? 1 : -1)
-          && Math.abs(coords.x - coords1.x) <= 1
-        )
-        || (
-          coords.y === (player === PLAYERS.WHITE ? 1 : 6)
-          && coords.x === coords1.x
-          && coords1.y - coords.y === (player === PLAYERS.WHITE ? 2 : -2)
-        )
-      )
-    );
-  });
+export function getSquaresBetween(square1, square2) {
+  const coords1 = getCoordsFromSquare(square1);
+  const coords2 = getCoordsFromSquare(square2);
+  const xs = new Range(coords1.x, coords2.x);
+  const ys = new Range(coords1.y, coords2.y);
+  if (xs.isEmpty()) {
+    return ys.map((y) => {
+      return getSquareFromCoords({x: coords1.x, y});
+    }).skip(1);
+  } else if (ys.isEmpty()) {
+    return xs.map((x) => {
+      return getSquareFromCoords({x, y: coords1.y});
+    }).skip(1);
+  } else if (xs.count() === ys.count()) {
+    return xs.zipWith((x, y) => {
+      return getSquareFromCoords({x, y});
+    }, ys).skip(1);
+  } else {
+    return List();
+  }
+}
+
+function getOpposingPlayer(player) {
+  switch (player) {
+    case PLAYERS.WHITE:
+      return PLAYERS.BLACK;
+    case PLAYERS.BLACK:
+      return PLAYERS.WHITE;
+    default:
+      throw new Error('Invalid player');
+  }
 }
 
 function getDiagonalSquares(square) {
@@ -285,84 +177,346 @@ function getOrthogonalSquares(square) {
   });
 }
 
-function getKnightSquares(square) {
-  const coords = getCoordsFromSquare(square);
-  return SQUARES.filter((square1) => {
-    const coords1 = getCoordsFromSquare(square1);
-    const xDistance = Math.abs(coords.x - coords1.x);
-    const yDistance = Math.abs(coords.y - coords1.y);
-    return (
-      square !== square1
-      && (
-        xDistance === 2 && yDistance === 1
-        || xDistance === 1 && yDistance === 2
-      )
-    );
-  });
-}
+const Piece = new Record({
+  key: null,
+  square: null,
+  player: null,
+});
 
-function getKingSquares(square) {
-  const coords = getCoordsFromSquare(square);
-  return getDiagonalSquares(square)
-    .union(getOrthogonalSquares(square))
-    .filter((square1) => {
+class Pawn extends Piece {
+  getRawMoves() {
+    const square = this.square;
+    const coords = getCoordsFromSquare(square);
+    return SQUARES.filter((square1) => {
       const coords1 = getCoordsFromSquare(square1);
       return (
         square !== square1
-        && Math.abs(coords.x - coords1.x) <= 1
-        && Math.abs(coords.y - coords1.y) <= 1
+        && (
+          (
+            coords1.y - coords.y === (this.player === PLAYERS.WHITE ? 1 : -1)
+            && Math.abs(coords.x - coords1.x) <= 1
+          )
+          ||
+          (
+            coords.y === (this.player === PLAYERS.WHITE ? 1 : 6)
+            && coords.x === coords1.x
+            && coords1.y - coords.y === (this.player === PLAYERS.WHITE ? 2 : -2)
+          )
+        )
       );
     });
-}
+  }
 
-function getMovement(piece) {
-  const square = piece.get('square');
-  const player = piece.get('player');
-  switch (piece.get('type')) {
-    case 'p':
-      return getPawnSquares(square, player);
-    case 'n':
-      return getKnightSquares(square);
-    case 'b':
-      return getDiagonalSquares(square);
-    case 'r':
-      return getOrthogonalSquares(square);
-    case 'q':
-      return getDiagonalSquares(square)
-        .union(getOrthogonalSquares(square));
-    case 'k':
-      return getKingSquares(square);
+  getPseudoLegalMoves(pieces) {
+    const square = this.square;
+    const coords = getCoordsFromSquare(square);
+    return this.getRawMoves().filter((square1) => {
+      const coords1 = getCoordsFromSquare(square1);
+      if (Math.abs(coords.x - coords1.x) === 1) {
+        return (
+          pieces.get(square1) != null
+          && pieces.get(square1).player === getOpposingPlayer(this.player)
+        );
+      } else {
+        return (
+          pieces.get(square1) == null
+          && getSquaresBetween(square, square1).every((square) => {
+            return pieces.get(square) == null;
+          })
+        );
+      }
+    });
   }
 }
 
-function isAttacked(pieces, player, square) {
-  const opposingPlayer = getOpposingPlayer(player);
-  const opposingPieces = pieces.filter((piece) => piece.player === opposingPlayer);
-  const attackingPieces = opposingPieces.filter((piece) => getAttacks(piece).includes(square));
+class Bishop extends Piece {
+  getRawMoves() {
+    return getDiagonalSquares(this.square);
+  }
+
+  getPseudoLegalMoves(pieces) {
+    return this.getRawMoves().filter((square) => {
+      return (
+        (
+          pieces.get(square) == null
+          || pieces.get(square).player === getOpposingPlayer(this.player)
+        )
+        && getSquaresBetween(this.square, square).every((square1) => {
+          return pieces.get(square1) == null;
+        })
+      );
+    });
+  }
 }
 
-function inCheck(pieces, player) {
+class Knight extends Piece {
+  getRawMoves() {
+    const square = this.square;
+    const coords = getCoordsFromSquare(square);
+    return SQUARES.filter((square1) => {
+      const coords1 = getCoordsFromSquare(square1);
+      const xDistance = Math.abs(coords.x - coords1.x);
+      const yDistance = Math.abs(coords.y - coords1.y);
+      return (
+        square !== square1
+        && (
+          xDistance === 2 && yDistance === 1
+          || xDistance === 1 && yDistance === 2
+        )
+      );
+    });
+  }
+
+  getPseudoLegalMoves(pieces) {
+    return this.getRawMoves().filter((square) => {
+      return (
+        pieces.get(square) == null
+        || pieces.get(square).player === getOpposingPlayer(this.player)
+      );
+    });
+  }
 }
 
-export function canCastle(pieces, castlings, move) {
-  const {kingSquare, rookSquare} = getCastlingSquares(move);
-  return (
-    castlings.get(move.get('player')).has(move.get('side')) && 
-    getSquaresBetween(kingSquare, rookSquare).every((square) => {
-      return pieces.get(square) == null;
-    })
-  );
+class Rook extends Piece {
+  getRawMoves() {
+    return getOrthogonalSquares(this.square);
+  }
+
+  getPseudoLegalMoves(pieces) {
+    return this.getRawMoves().filter((square) => {
+      return (
+        (
+          pieces.get(square) == null
+          || pieces.get(square).player === getOpposingPlayer(this.player)
+        )
+        && getSquaresBetween(this.square, square).every((square1) => {
+          return pieces.get(square1) == null;
+        })
+      );
+    });
+  }
 }
 
-function updatePieces(position, move) {
-  const { turn, castlings } = position;
+class Queen extends Piece {
+  getRawMoves() {
+    return getOrthogonalSquares(this.square)
+      .union(getDiagonalSquares(this.square));
+  }
+
+  getPseudoLegalMoves(pieces) {
+    return this.getRawMoves().filter((square) => {
+      return (
+        (
+          pieces.get(square) == null
+          || pieces.get(square).player === getOpposingPlayer(this.player)
+        )
+        && getSquaresBetween(this.square, square).every((square1) => {
+          return pieces.get(square1) == null;
+        })
+      );
+    });
+  }
 }
 
-function updatePosition(position, move) {
-  return Map({
-    pieces: updatePieces(position, move),
-  });
+class King extends Piece {
+  getRawMoves() {
+    const square = this.square;
+    const coords = getCoordsFromSquare(square);
+    return getDiagonalSquares(square)
+      .union(getOrthogonalSquares(square))
+      .filter((square1) => {
+        const coords1 = getCoordsFromSquare(square1);
+        return (
+          Math.abs(coords.x - coords1.x) <= 1
+          && Math.abs(coords.y - coords1.y) <= 1
+        );
+      });
+  }
+
+  getPseudoLegalMoves(pieces) {
+    return this.getRawMoves().filter((square) => {
+      return (
+        pieces.get(square) == null
+        || pieces.get(square).player === getOpposingPlayer(this.player)
+      );
+    });
+  }
 }
+
+const initialPieces = new Map({
+  'a1': new Rook({square: 'a1', key: 'a1', player: PLAYERS.WHITE}),
+  'b1': new Knight({square: 'b1', key: 'b1', player: PLAYERS.WHITE}),
+  'c1': new Bishop({square: 'c1', key: 'c1', player: PLAYERS.WHITE}),
+  'd1': new Queen({square: 'd1', key: 'd1', player: PLAYERS.WHITE}),
+  'e1': new King({square: 'e1', key: 'e1', player: PLAYERS.WHITE}),
+  'f1': new Bishop({square: 'f1', key: 'f1', player: PLAYERS.WHITE}),
+  'g1': new Knight({square: 'g1', key: 'g1', player: PLAYERS.WHITE}),
+  'h1': new Rook({square: 'h1', key: 'h1', player: PLAYERS.WHITE}),
+
+  'a2': new Pawn({square: 'a2', key: 'a2', player: PLAYERS.WHITE}),
+  'b2': new Pawn({square: 'b2', key: 'b2', player: PLAYERS.WHITE}),
+  'c2': new Pawn({square: 'c2', key: 'c2', player: PLAYERS.WHITE}),
+  'd2': new Pawn({square: 'd2', key: 'd2', player: PLAYERS.WHITE}),
+  'e2': new Pawn({square: 'e2', key: 'e2', player: PLAYERS.WHITE}),
+  'f2': new Pawn({square: 'f2', key: 'f2', player: PLAYERS.WHITE}),
+  'g2': new Pawn({square: 'g2', key: 'g2', player: PLAYERS.WHITE}),
+  'h2': new Pawn({square: 'h2', key: 'h2', player: PLAYERS.WHITE}),
+
+  'a7': new Pawn({square: 'a7', key: 'a7', player: PLAYERS.BLACK}),
+  'b7': new Pawn({square: 'b7', key: 'b7', player: PLAYERS.BLACK}),
+  'c7': new Pawn({square: 'c7', key: 'c7', player: PLAYERS.BLACK}),
+  'd7': new Pawn({square: 'd7', key: 'd7', player: PLAYERS.BLACK}),
+  'e7': new Pawn({square: 'e7', key: 'e7', player: PLAYERS.BLACK}),
+  'f7': new Pawn({square: 'f7', key: 'f7', player: PLAYERS.BLACK}),
+  'g7': new Pawn({square: 'g7', key: 'g7', player: PLAYERS.WHITE}),
+  'h7': new Pawn({square: 'h7', key: 'h7', player: PLAYERS.WHITE}),
+
+  'a8': new Rook({square: 'a8', key: 'a8', player: PLAYERS.BLACK}),
+  'b8': new Knight({square: 'b8', key: 'b8', player: PLAYERS.BLACK}),
+  'c8': new Bishop({square: 'c8', key: 'c8', player: PLAYERS.BLACK}),
+  'd8': new Queen({square: 'd8', key: 'd8', player: PLAYERS.BLACK}),
+  'e8': new King({square: 'e8', key: 'e8', player: PLAYERS.BLACK}),
+  'f8': new Bishop({square: 'f8', key: 'f8', player: PLAYERS.BLACK}),
+  'g8': new Knight({square: 'g8', key: 'g8', player: PLAYERS.BLACK}),
+  'h8': new Rook({square: 'h8', key: 'h8', player: PLAYERS.BLACK}),
+});
+
+const inCheck = new Map({
+  'a2': new Pawn({square: 'a2', player: PLAYERS.WHITE}),
+  'd3': new Pawn({square: 'd3', player: PLAYERS.WHITE}),
+  'f5': new Pawn({square: 'f5', player: PLAYERS.WHITE}),
+  'g2': new Pawn({square: 'g2', player: PLAYERS.WHITE}),
+  'h3': new Pawn({square: 'h3', player: PLAYERS.WHITE}),
+
+  'a6': new Pawn({square: 'a6', player: PLAYERS.BLACK}),
+  'b5': new Pawn({square: 'b5', player: PLAYERS.BLACK}),
+  'c5': new Pawn({square: 'c5', player: PLAYERS.BLACK}),
+  'd4': new Pawn({square: 'd4', player: PLAYERS.BLACK}),
+  'f6': new Pawn({square: 'f6', player: PLAYERS.BLACK}),
+  'f7': new Pawn({square: 'f7', player: PLAYERS.BLACK}),
+ 
+  'h4': new Rook({square: 'h4', player: PLAYERS.WHITE}),
+
+  'c7': new Rook({square: 'c7', player: PLAYERS.BLACK}),
+  'g8': new Rook({square: 'g8', player: PLAYERS.BLACK}),
+
+  'f8': new Bishop({square: 'f8', player: PLAYERS.WHITE}),
+
+  'c2': new Knight({square: 'c2', player: PLAYERS.BLACK}),
+
+  'g1': new King({square: 'g1', player: PLAYERS.WHITE}),
+  'h8': new King({square: 'h8', player: PLAYERS.BLACK}),
+});
+
+class Position extends new Record({
+  pieces: initialPieces,
+  turn: PLAYERS.WHITE,
+}) {
+  inCheck() {
+    const king = this.pieces.filter((piece) => {
+      return piece.player === this.turn && piece.constructor === King;
+    }).first();
+    const opposingPieces = this.pieces.filter((piece) => {
+      return piece.player === getOpposingPlayer(this.turn);
+    });
+    const opposingAttacks = opposingPieces.map((piece) => {
+      return piece.getPseudoLegalMoves(this.pieces);
+    }).reduce((opposingAttacks, attacks) => {
+      return opposingAttacks.union(attacks);
+    });
+    return opposingAttacks.includes(king.square);
+  }
+
+  getPseudoLegalMoves() {
+    return this.pieces.filter((piece) => {
+      return piece.player === this.turn;
+    }).map((piece, fromSquare) => {
+      const toSquares = piece.getPseudoLegalMoves(this.pieces);
+      return new Repeat(fromSquare).zipWith((from, to) => {
+        return new Map({from, to});
+      }, toSquares);
+    }).reduce((moves1, moves) => {
+      return moves1.concat(moves);
+    });
+  }
+
+  getLegalMoves() {
+    const pseudoLegalMoves = this.getPseudoLegalMoves();
+  }
+
+  makePseudoLegalMove(move) {
+    return this.update('pieces', (pieces) => {
+      const movingPiece = pieces.get(move.get('from'));
+      return pieces.remove(move.get('from')).set(move.get('to'), movingPiece);
+    });
+  }
+
+  ascii() {
+    return RANK_LABELS.reverse().map((r) => {
+      return FILE_LABELS.map((f) => {
+        const piece = this.pieces.get(f + r);
+        if (piece == null) {
+          return ' ';
+        } else {
+          switch (piece.constructor) {
+            case Pawn:
+              return 'p';
+            case Bishop:
+              return 'b';
+            case Knight:
+              return 'n';
+            case Rook:
+              return 'r';
+            case Queen:
+              return 'q';
+            case King:
+              return 'k';
+          }
+        }
+      }).join('|');
+    }).join('\n');
+  }
+}
+
+// console.log(new Position({pieces: initialPieces, turn: PLAYERS.WHITE}).getPseudoLegalMoves().toJS());
+
+// var position = new Position({pieces: initialPieces, turn: PLAYERS.WHITE}).makePseudoLegalMove((new Map({from: 'e2', to: 'e4'})));
+
+// console.log('\n'+ position.ascii());
+
+// console.log(new Rook({square: 'e5', player: PLAYERS.WHITE}).getPseudoLegalMoves(new Map({
+//  'f4': new Pawn({square: 'f4', player: PLAYERS.WHITE}),
+//  'f6': new Pawn({square: 'f6', player: PLAYERS.WHITE}),
+//  'd4': new Pawn({square: 'd4', player: PLAYERS.WHITE}),
+//  'd6': new Pawn({square: 'd6', player: PLAYERS.WHITE}),
+//  'e4': new Pawn({square: 'e4', player: PLAYERS.BLACK}),
+//  'e6': new Pawn({square: 'e6', player: PLAYERS.BLACK}),
+//  'd5': new Pawn({square: 'd5', player: PLAYERS.BLACK}),
+//  'f5': new Pawn({square: 'f5', player: PLAYERS.BLACK}),
+// })).toJS());
+
+// function getCastlingSquares(move) {
+//   const kingSquare = move.get('player') === PLAYERS.WHITE
+//     ? 'e1'
+//     : 'e8';
+//   const rookSquare = move.get('player') === PLAYERS.WHITE
+//     ? move.get('side') === KINGSIDE
+//       ? 'h1'
+//       : 'a1'
+//     : move.get('side') === KINGSIDE
+//       ? 'h8'
+//       : 'a8';
+//   return { kingSquare, rookSquare };
+// }
+// export function canCastle(pieces, castlings, move) {
+//   const {kingSquare, rookSquare} = getCastlingSquares(move);
+//   return (
+//     castlings.get(move.get('player')).has(move.get('side')) && 
+//     getSquaresBetween(kingSquare, rookSquare).every((square) => {
+//       return pieces.get(square) == null;
+//     })
+//   );
+// }
 
 const defaultStartingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const defaultStartingPosition = parseFen(defaultStartingFen);
