@@ -413,9 +413,9 @@ class Position extends new Record({
   turn: PLAYERS.WHITE,
 }) {
   inCheck() {
-    const king = this.pieces.filter((piece) => {
+    const kingSquare = this.pieces.filter((piece) => {
       return piece.player === this.turn && piece.constructor === King;
-    }).first();
+    }).keySeq().first();
     const opposingPieces = this.pieces.filter((piece) => {
       return piece.player === getOpposingPlayer(this.turn);
     });
@@ -424,7 +424,7 @@ class Position extends new Record({
     }).reduce((opposingAttacks, attacks) => {
       return opposingAttacks.union(attacks);
     });
-    return opposingAttacks.includes(king.square);
+    return opposingAttacks.includes(kingSquare);
   }
 
   getPseudoLegalMoves() {
@@ -440,14 +440,16 @@ class Position extends new Record({
     });
   }
 
-  getLegalMoves() {
-    const pseudoLegalMoves = this.getPseudoLegalMoves();
-  }
-
   makePseudoLegalMove(move) {
     return this.update('pieces', (pieces) => {
-      const movingPiece = pieces.get(move.get('from'));
+      const movingPiece = pieces.get(move.get('from')).set('square', move.get('to'));
       return pieces.remove(move.get('from')).set(move.get('to'), movingPiece);
+    });
+  }
+
+  getLegalMoves() {
+    return this.getPseudoLegalMoves().filter((move) => {
+      return !this.makePseudoLegalMove(move).inCheck();
     });
   }
 
@@ -460,17 +462,41 @@ class Position extends new Record({
         } else {
           switch (piece.constructor) {
             case Pawn:
-              return 'p';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'P';
+              } else {
+                return 'p';
+              }
             case Bishop:
-              return 'b';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'B';
+              } else {
+                return 'b';
+              }
             case Knight:
-              return 'n';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'N';
+              } else {
+                return 'n';
+              }
             case Rook:
-              return 'r';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'R';
+              } else {
+                return 'r';
+              }
             case Queen:
-              return 'q';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'Q';
+              } else {
+                return 'q';
+              }
             case King:
-              return 'k';
+              if (piece.player === PLAYERS.WHITE) {
+                return 'K';
+              } else {
+                return 'k';
+              }
           }
         }
       }).join('|');
@@ -478,7 +504,15 @@ class Position extends new Record({
   }
 }
 
-// console.log(new Position({pieces: initialPieces, turn: PLAYERS.WHITE}).getPseudoLegalMoves().toJS());
+const position = new Position({pieces: inCheck, turn: PLAYERS.BLACK});
+// console.log('\n' + position.ascii());
+
+// console.log(position.inCheck());
+// console.log(position.makePseudoLegalMove(position.getPseudoLegalMoves().first()).inCheck());
+console.log(position.getLegalMoves().toJS());
+// const position1 = position.makePseudoLegalMove(new Map({from: 'h8', to: 'h7'}));
+// console.log('\n'+position1.ascii());
+// console.log(position1.inCheck());
 
 // var position = new Position({pieces: initialPieces, turn: PLAYERS.WHITE}).makePseudoLegalMove((new Map({from: 'e2', to: 'e4'})));
 
