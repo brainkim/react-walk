@@ -125,26 +125,30 @@ function getSquareFromCoords({x, y}) {
   return FILE_LABELS.get(x) + RANK_LABELS.get(y);
 }
 
-export function getSquaresBetween(square1, square2) {
-  const coords1 = getCoordsFromSquare(square1);
-  const coords2 = getCoordsFromSquare(square2);
-  const xs = new Range(coords1.x, coords2.x);
-  const ys = new Range(coords1.y, coords2.y);
+export function getSquareRange(startSquare, endSquare) {
+  const startCoords = getCoordsFromSquare(startSquare);
+  const endCoords = getCoordsFromSquare(endSquare);
+  const xs = new Range(startCoords.x, endCoords.x);
+  const ys = new Range(startCoords.y, endCoords.y);
   if (xs.isEmpty()) {
     return ys.map((y) => {
-      return getSquareFromCoords({x: coords1.x, y});
-    }).skip(1);
+      return getSquareFromCoords({x: startCoords.x, y});
+    });
   } else if (ys.isEmpty()) {
     return xs.map((x) => {
-      return getSquareFromCoords({x, y: coords1.y});
-    }).skip(1);
+      return getSquareFromCoords({x, y: startCoords.y});
+    });
   } else if (xs.count() === ys.count()) {
     return xs.zipWith((x, y) => {
       return getSquareFromCoords({x, y});
-    }, ys).skip(1);
+    }, ys);
   } else {
     return new List();
   }
+}
+
+export function getSquaresBetween(startSquare, endSquare) {
+  return getSquareRange(startSquare, endSquare).skip(1);
 }
 
 function getOpposingPlayer(player) {
@@ -420,17 +424,31 @@ const _Position = new Record({
 });
 
 function getCastlingSquares(player, side) {
-  const kingSquare = player === PLAYERS.WHITE
-    ? 'e1'
-    : 'e8';
-  const rookSquare = player === PLAYERS.WHITE
-    ? side === SIDES.KINGSIDE
-      ? 'h1'
-      : 'a1'
-    : side === SIDES.KINGSIDE
-      ? 'h8'
-      : 'a8';
-  return {kingSquare, rookSquare};
+  let kingStartSquare, kingEndSquare, rookStartSquare, rookEndSquare;
+  if (player === PLAYERS.WHITE) {
+    kingStartSquare = 'e1';
+    if (side === SIDES.KINGSIDE) {
+      kingEndSquare = 'g1';
+      rookStartSquare = 'h1';
+      rookEndSquare = 'f1';
+    } else {
+      kingEndSquare = 'c1';
+      rookStartSquare = 'a1';
+      rookEndSquare = 'd1';
+    }
+  } else {
+    kingStartSquare = 'e8';
+    if (side === SIDES.KINGSIDE) {
+      kingEndSquare = 'g8';
+      rookStartSquare = 'h8';
+      rookEndSquare = 'f8';
+    } else {
+      kingEndSquare = 'c8';
+      rookStartSquare = 'a8';
+      rookEndSquare = 'd8';
+    }
+  }
+  return {kingStartSquare, kingEndSquare, rookStartSquare, rookEndSquare};
 }
 
 class Position extends _Position {
@@ -445,7 +463,7 @@ class Position extends _Position {
       return piece.getPseudoLegalMoves(this.pieces);
     }).reduce((opposingAttacks, attacks) => {
       return opposingAttacks.union(attacks);
-    });
+    }, new Set());
     return opposingAttacks.includes(kingSquare);
   }
 
@@ -467,36 +485,37 @@ class Position extends _Position {
   }
 
   getPseudoLegalCastleMoves() {
-    if (!this.inCheck()) {
-      const enemyAttacks = this.pieces.filter((piece) => {
-        return piece.player === getOpposingPlayer(this.turn);
-      }).map((piece) => {
-        return piece.getPseudoLegalMoves(this.pieces);
-      }).reduce((enemyAttacks, attacks) => {
-        return enemyAttacks.union(attacks);
-      });
-
-      return new List(this.castlings.get(this.turn).filter((side) => {
-        const {kingSquare, rookSquare} = getCastlingSquares(this.turn, side);
-        return getSquaresBetween(kingSquare, rookSquare).every((square) => {
-          return (
-            this.pieces.get(square) == null
-            && !enemyAttacks.includes(square)
-          );
-        });
-      }));
-    } else {
+    if (this.inCheck()) {
       return new List();
+    } else {
+      return new List(this.castlings.get(this.turn).filter((side) => {
+        const {kingStartSquare, kingEndSquare, rookStartSquare} = getCastlingSquares(this.turn, side);
+        return (
+          getSquaresBetween(kingStartSquare, rookStartSquare).every((square) => {
+            return this.pieces.get(square) == null;
+          })
+          && getSquaresBetween(kingStartSquare, kingEndSquare).every((square) => {
+            return !this.movePiece(kingStartSquare, square).inCheck();
+          })
+        );
+      }));
     }
   }
 
-  makePseudoLegalMove(move) {
+  movePiece(from, to) {
     return this.update('pieces', (pieces) => {
-      const to = move.get('to');
-      const from = move.get('from');
-      const movingPiece = pieces.get(move.get('from')).set('square', move.get('to'));
-      return pieces.remove(move.get('from')).set(move.get('to'), movingPiece);
+      const movingPiece = pieces.get(from).set('square', to);
+      return pieces.remove(from).set(to, movingPiece);
     });
+  }
+
+  makePseudoLegalMove(move) {
+    if (move === SIDES.KINGSIDE || move === SIDES.QUEENSIDE) {
+      const {kingStartSquare, kingEndSquare, rookStartSquare, rookEndSquare} = getCastlingSquares(this.turn, move);
+      return this.movePiece(kingStartSquare, kingEndSquare).movePiece(rookStartSquare, rookEndSquare);
+    } else {
+      return this.movePiece(move.get('from'), move.get('to'));
+    }
   }
 
   getLegalMoves() {
@@ -556,19 +575,16 @@ class Position extends _Position {
   }
 }
 
-const castleCity = new Map({ 
-  'a1': new Rook({square: 'a1', player: PLAYERS.WHITE}),
-  'h1': new Rook({square: 'h1', player: PLAYERS.WHITE}),
-  'e1': new King({square: 'e1', player: PLAYERS.WHITE}),
-
-  'a8': new Rook({square: 'a8', player: PLAYERS.BLACK}),
-  'h8': new Rook({square: 'h8', player: PLAYERS.BLACK}),
-  'e8': new King({square: 'e8', player: PLAYERS.WHITE}),
-});
+// const castleCity = new Map({ 
+//   'g7': new Rook({square: 'g7', player: PLAYERS.WHITE}),
+//   'a8': new Rook({square: 'a8', player: PLAYERS.BLACK}), 
+//   'h8': new Rook({square: 'h8', player: PLAYERS.BLACK}),
+//   'e8': new King({square: 'e8', player: PLAYERS.BLACK}),
+// });
 
 // const position = new Position({pieces: inCheck, turn: PLAYERS.BLACK});
-const position = new Position({pieces: castleCity, turn: PLAYERS.BLACK});
-console.log(position.getPseudoLegalMoves().toJS());
+// const position = new Position({pieces: castleCity, turn: PLAYERS.BLACK});
+// console.log(position.getLegalMoves().toJS());
 
 // console.log('\n' + position.ascii());
 // const position1 = position.makePseudoLegalMove(new Map({from: 'h8', to: 'h7'}));
