@@ -6,7 +6,7 @@ import ReactDOM from 'react-dom/server';
 
 import webpack from 'webpack';
 
-function Asset({assetName}) {
+function Script({assetName}) {
   throw new Error('ReactWebpack did not replace this element');
 }
 
@@ -21,11 +21,11 @@ function normalizeAssets(assets) {
   }
 }
 
-function getAssetURL(stats, assetName, extension='.js') {
-  const publicPath = stats.publicPath;
-  const assets = normalizeAssets(stats.assetsByChunkName[assetName]);
-  const test = new RegExp(`${extension}$`, 'i');
-  const asset = assets.filter((a) => test.test(a))[0];
+function getAssetURL(assetsByChunkName, publicPath, chunkName) {
+  let {name, ext} = path.parse(chunkName);
+  const assets = normalizeAssets(assetsByChunkName[name]);
+  const test = new RegExp(`${ext}$`, 'i');
+  const [asset] = assets.filter((a) => test.test(a));
   if (asset != null) {
     return publicPath + asset;
   } else {
@@ -33,16 +33,17 @@ function getAssetURL(stats, assetName, extension='.js') {
   }
 }
 
-function replaceScripts(stats, element) {
+function replaceAssets(stats, element) {
+  const {assetsByChunkName, publicPath} = stats.toJson();
   if (element.type === Script) {
-    const {assetName} = element.props;
+    let name = element.props.name;
     return (
-      <script src={getAssetURL(stats, assetName)} />
+      <script src={getAssetURL(assetsByChunkName, publicPath, name)} />
     );
   } else {
     return React.cloneElement(element, {...element.props}, React.Children.map(element.props.children, (child) => {
       if (React.isValidElement(child)) {
-        return replaceScripts(stats, child);
+        return replaceAssets(stats, child);
       } else {
         return child;
       }
@@ -56,42 +57,46 @@ class Bob {
     this.compiler = webpack(config);
   }
 
-  build(elementTree) {
+  build(element) {
     return new Promise((resolve, reject) => {
-      compiler.run((err, stats) => {
+      this.compiler.run((err, stats) => {
+        fs.writeFileSync('./poop.json', JSON.stringify(stats.toJson(), null, 2));
         if (err) {
           reject(err);
         } else if (stats.hasErrors()) {
           console.log(`what the fuck ${stats.errors} ${stats.warnings}`);
           reject([stats.errors, stats.warnings]);
         } else {
-          element = replaceScripts(stats, lement);
-          resolve(swapAssets(stats, entry));
+          resolve(replaceAssets(stats, element));
         }
       });
     });
   }
 }
-const bob = new Bob();
 
 import ReactNode from './react-node-utils';
 
-function async main() {
-  let html = (
+const bob = new Bob();
+
+async function main() {
+  let template = (
     <html>
       <head>
         <title>React Chess</title>
-        <Asset name="./src/chess.css" />
       </head>
       <body>
         <div id='root'></div>
-        <Asset name="./src/chess.js" />
+        <Script name="chess.js" />
       </body>
     </html>
   );
-  template = await bob.build(template);
-  console.log('uhhh');
-  ReactNode.writeFileSync('dist.c', template);
+  try {
+    template = await bob.build(template);
+  } catch (err) {
+    console.log(err);
+  }
+  console.log('uhhhh');
+  ReactNode.writeFileSync('./dist/index.html', template);
 }
 
 main();
