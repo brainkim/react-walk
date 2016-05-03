@@ -7,7 +7,7 @@ import Chess from 'chess.js';
 
 import debounce from 'lodash.debounce';
 
-import model from './model';
+import {Position, getPieceLetter} from './model';
 
 const BOARD_SIZE = 600;
 const SQUARE_SIZE = BOARD_SIZE/8;
@@ -304,74 +304,74 @@ function originalSquare(piece, position) {
   }, piece.square);
 }
 
-function pgnToPositions(pgn) {
-  const game = new Chess();
-  game.load_pgn(pgn);
-  const gameHistory = game.history({verbose: true});
-  const positions = [];
-  gameHistory.forEach((move, i) => {
-    const position = gameHistory
-      .slice(0, i)
-      .reduce((g, m) => {
-        g.move(m);
-        return g;
-      }, new Chess());
-    const pieces = fenToPieces(position.fen());
-    pieces.forEach((piece) => {
-      piece.originalSquare = originalSquare(piece, position);
-    });
-
-    positions.push(pieces);
-  });
-  const pieces = fenToPieces(game.fen());
-  pieces.forEach((piece) => {
-    piece.originalSquare = originalSquare(piece, game);
-  });
-  positions.push(pieces);
-  return positions;
-}
+// function pgnToPositions(pgn) {
+//   const game = new Chess();
+//   game.load_pgn(pgn);
+//   const gameHistory = game.history({verbose: true});
+//   const positions = [];
+//   gameHistory.forEach((move, i) => {
+//     const position = gameHistory
+//       .slice(0, i)
+//       .reduce((g, m) => {
+//         g.move(m);
+//         return g;
+//       }, new Chess());
+//     const pieces = fenToPieces(position.fen());
+//     pieces.forEach((piece) => {
+//       piece.originalSquare = originalSquare(piece, position);
+//     });
+// 
+//     positions.push(pieces);
+//   });
+//   const pieces = fenToPieces(game.fen());
+//   pieces.forEach((piece) => {
+//     piece.originalSquare = originalSquare(piece, game);
+//   });
+//   positions.push(pieces);
+//   return positions;
+// }
 
 import fischerImmortal from './fischer-immortal.pgn';
 
-const positions = pgnToPositions(fischerImmortal);
+// const positions = pgnToPositions(fischerImmortal);
 
 export class App extends Component {
-  constructor(props) { 
-    super(props);
-    this.state = {
-      moveIndex: 0,
-      positions: positions,
-    };
-  }
+  // constructor(props) { 
+  //   super(props);
+  //   this.state = {
+  //     moveIndex: 0,
+  //     positions: positions,
+  //   };
+  // }
 
-  componentDidMount() {
-    window.addEventListener('keydown', debounce((ev) => {
-      if (ev.keyCode === 37) { //left
-        this.goBack();
-      } else if (ev.keyCode === 39) { //right
-        this.goForward();
-      }
-    }), 26);
-  }
-  
-  goBack() {
-    const {positions, moveIndex} = this.state;
-    this.setState({ 
-      moveIndex: Math.max(moveIndex - 1, 0),
-    });
-  }
+  // componentDidMount() {
+  //   window.addEventListener('keydown', debounce((ev) => {
+  //     if (ev.keyCode === 37) { //left
+  //       this.goBack();
+  //     } else if (ev.keyCode === 39) { //right
+  //       this.goForward();
+  //     }
+  //   }), 26);
+  // }
+  // 
+  // goBack() {
+  //   const {positions, moveIndex} = this.state;
+  //   this.setState({ 
+  //     moveIndex: Math.max(moveIndex - 1, 0),
+  //   });
+  // }
 
-  goForward() {
-    const {positions, moveIndex} = this.state;
-    this.setState({
-      moveIndex: Math.min(moveIndex + 1, positions.length - 1),
-    });
-  }
+  // goForward() {
+  //   const {positions, moveIndex} = this.state;
+  //   this.setState({
+  //     moveIndex: Math.min(moveIndex + 1, positions.length - 1),
+  //   });
+  // }
 
   render() {
-    const {positions, moveIndex} = this.state;
-    const position = positions[moveIndex];
-
+    // const {positions, moveIndex} = this.state;
+    const position = new Position();
+    const moves = position.getPseudoLegalMoves();
     return (
       <div
         style={{
@@ -384,30 +384,24 @@ export class App extends Component {
           position: 'relative',
         }}>
         <Board>
-          {/*
-          <SVGLayer>
-            {position.map((p, i) => {
-              if (p.square === p.originalSquare) {
-                return (<Circle square={p.square} key={i} />);
-              } else {
-                return (<Arrow fromSquare={p.square} toSquare={p.originalSquare} key={i} />);
-              }
-            })}
-          </SVGLayer>
-          */}
           <PieceLayer>
-            {position.map((p, i) =>
+            {position.pieces.map((p, i) =>
               <Piece
-                key={p.originalSquare}
-                name={p.name}
-                color={p.color}
+                key={i}
+                name={getPieceLetter(p.constructor)}
+                color={p.player === 'WHITE' ? 'w' : 'b'}
                 square={p.square}
                 index={i}
-                originalSquare={p.originalSquare}
               />
-            )}
+            ).valueSeq().toJS()}
           </PieceLayer>
+          <SVGLayer>
+            {moves.toJS().map((move, i) =>
+              <Arrow fromSquare={move.from} toSquare={move.to} key={i} />
+            )}
+          </SVGLayer>
         </Board>
+        {/*
         <div>
           <div>
             <button onClick={this.goBack.bind(this)}>{'<'}</button>
@@ -418,6 +412,7 @@ export class App extends Component {
           <div>{moveIndex}</div>
           <div>{positions.length}</div>
         </div>
+        */}
       </div>
     );
   }

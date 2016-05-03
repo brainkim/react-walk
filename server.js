@@ -3,6 +3,7 @@ var WebpackDevServer = require('webpack-dev-server');
 var config = require('./webpack.config.js');
 
 new WebpackDevServer(webpack(config), {
+  stats: 'errors-only',
   publicPath: config.output.publicPath,
   hot: true,
   historyApiFallback: true
@@ -10,6 +11,5 @@ new WebpackDevServer(webpack(config), {
   if (err) {
     return console.log(err);
   }
-
   console.log('Listening at http://localhost:1337/');
 });

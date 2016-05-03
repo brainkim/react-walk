@@ -385,8 +385,8 @@ const initialPieces = new Map({
   'd7': new Pawn({square: 'd7', key: 'd7', player: PLAYERS.BLACK}),
   'e7': new Pawn({square: 'e7', key: 'e7', player: PLAYERS.BLACK}),
   'f7': new Pawn({square: 'f7', key: 'f7', player: PLAYERS.BLACK}),
-  'g7': new Pawn({square: 'g7', key: 'g7', player: PLAYERS.WHITE}),
-  'h7': new Pawn({square: 'h7', key: 'h7', player: PLAYERS.WHITE}),
+  'g7': new Pawn({square: 'g7', key: 'g7', player: PLAYERS.BLACK}),
+  'h7': new Pawn({square: 'h7', key: 'h7', player: PLAYERS.BLACK}),
 
   'a8': new Rook({square: 'a8', key: 'a8', player: PLAYERS.BLACK}),
   'b8': new Knight({square: 'b8', key: 'b8', player: PLAYERS.BLACK}),
@@ -425,12 +425,39 @@ const inCheck = new Map({
   'h8': new King({square: 'h8', player: PLAYERS.BLACK}),
 });
 
+const castleCity = new Map({
+  'g7': new Rook({square: 'g7', player: PLAYERS.WHITE}),
+  'd7': new Rook({square: 'd7', player: PLAYERS.WHITE}),
+
+  'a8': new Rook({square: 'a8', player: PLAYERS.BLACK}),
+  'h8': new Rook({square: 'h8', player: PLAYERS.BLACK}),
+  'e8': new King({square: 'e8', player: PLAYERS.BLACK}),
+});
+
+const promotionCity = new Map({
+  'e7': new Pawn({square: 'e7', player: PLAYERS.WHITE}),
+  'e2': new Pawn({square: 'e2', player: PLAYERS.BLACK}),
+
+  'e1': new King({square: 'e1', player: PLAYERS.WHITE}),
+  'h1': new Rook({square: 'h1', player: PLAYERS.WHITE}),
+  'a1': new Rook({square: 'a1', player: PLAYERS.WHITE}),
+
+  'g8': new King({square: 'g8', player: PLAYERS.BLACK}),
+});
+
+
 const _Position = new Record({
-  pieces: initialPieces,
-  turn: PLAYERS.WHITE,
+  // pieces: initialPieces,
+  // turn: PLAYERS.WHITE,
+  // castlings: new Map({
+  //   [PLAYERS.WHITE]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
+  //   [PLAYERS.BLACK]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
+  // }),
+  pieces: inCheck,
+  turn: PLAYERS.BLACK,
   castlings: new Map({
-    [PLAYERS.WHITE]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
-    [PLAYERS.BLACK]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
+    [PLAYERS.WHITE]: new Set(),
+    [PLAYERS.BLACK]: new Set(),
   }),
 });
 
@@ -462,7 +489,7 @@ function getCastlingSquares(player, side) {
   return {kingStartSquare, kingEndSquare, rookStartSquare, rookEndSquare};
 }
 
-function getPieceLetter(pieceType) {
+export function getPieceLetter(pieceType) {
   switch (pieceType) {
     case Pawn:
       return 'p';
@@ -481,7 +508,7 @@ function getPieceLetter(pieceType) {
   }
 }
 
-class Position extends _Position {
+export class Position extends _Position {
   inCheck() {
     const kingSquare = this.pieces.filter((piece) => {
       return piece.player === this.turn && piece.constructor === King;
@@ -575,62 +602,6 @@ class Position extends _Position {
     }).join('\n');
   }
 }
-
-// const castleCity = new Map({
-//   'g7': new Rook({square: 'g7', player: PLAYERS.WHITE}),
-//   'd7': new Rook({square: 'd7', player: PLAYERS.WHITE}),
-//
-//   'a8': new Rook({square: 'a8', player: PLAYERS.BLACK}),
-//   'h8': new Rook({square: 'h8', player: PLAYERS.BLACK}),
-//   'e8': new King({square: 'e8', player: PLAYERS.BLACK}),
-// });
-//
-// const promotionCity = new Map({
-//   'e7': new Pawn({square: 'e7', player: PLAYERS.WHITE}),
-//   'e2': new Pawn({square: 'e2', player: PLAYERS.BLACK}),
-//
-//   'e1': new King({square: 'e1', player: PLAYERS.WHITE}),
-//   'h1': new Rook({square: 'h1', player: PLAYERS.WHITE}),
-//   'a1': new Rook({square: 'a1', player: PLAYERS.WHITE}),
-//
-//   'g8': new King({square: 'g8', player: PLAYERS.BLACK}),
-// });
-//
-// const position = new Position({
-//   pieces: promotionCity,
-//   turn: PLAYERS.BLACK,
-//   castlings: new Map({
-//     [PLAYERS.WHITE]: new Set([SIDES.KINGSIDE, SIDES.QUEENSIDE]),
-//     [PLAYERS.BLACK]: new Set([]),
-//   }),
-// });
-//
-// console.log('\n' + position.ascii());
-// console.log(JSON.stringify(position.getLegalMoves().toJS(), null, 2));
-
-// const position = new Position({pieces: inCheck, turn: PLAYERS.BLACK});
-// const position = new Position({pieces: castleCity, turn: PLAYERS.BLACK});
-// console.log(position.getPseudoLegalMoves().toJS());
-
-// console.log('\n' + position.ascii());
-// const position1 = position.makePseudoLegalMove(new Map({from: 'h8', to: 'h7'}));
-// console.log('\n'+position1.ascii());
-// console.log(position1.inCheck());
-
-// var position = new Position({pieces: initialPieces, turn: PLAYERS.WHITE}).makePseudoLegalMove((new Map({from: 'e2', to: 'e4'})));
-
-// console.log('\n'+ position.ascii());
-
-// console.log(new Rook({square: 'e5', player: PLAYERS.WHITE}).getPseudoLegalMoves(new Map({
-//  'f4': new Pawn({square: 'f4', player: PLAYERS.WHITE}),
-//  'f6': new Pawn({square: 'f6', player: PLAYERS.WHITE}),
-//  'd4': new Pawn({square: 'd4', player: PLAYERS.WHITE}),
-//  'd6': new Pawn({square: 'd6', player: PLAYERS.WHITE}),
-//  'e4': new Pawn({square: 'e4', player: PLAYERS.BLACK}),
-//  'e6': new Pawn({square: 'e6', player: PLAYERS.BLACK}),
-//  'd5': new Pawn({square: 'd5', player: PLAYERS.BLACK}),
-//  'f5': new Pawn({square: 'f5', player: PLAYERS.BLACK}),
-// })).toJS());
 
 const defaultStartingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const defaultStartingPosition = parseFen(defaultStartingFen);
