@@ -6,7 +6,7 @@ import ReactDOM from 'react-dom/server';
 
 import webpack from 'webpack';
 
-function WebpackScript({assetName}) {
+function Asset({assetName}) {
   throw new Error('ReactWebpack did not replace this element');
 }
 
@@ -34,7 +34,7 @@ function getAssetURL(stats, assetName, extension='.js') {
 }
 
 function replaceScripts(stats, element) {
-  if (element.type === WebpackScript) {
+  if (element.type === Script) {
     const {assetName} = element.props;
     return (
       <script src={getAssetURL(stats, assetName)} />
@@ -50,38 +50,48 @@ function replaceScripts(stats, element) {
   }
 }
 
-class ReactWebpack {
-  static run(config, element, callback) {
-    const compiler = webpack(config);
-    compiler.run((err, stats) => {
-      if (err) {
-        callback(err);
-      } else {
-        element = replaceScripts(stats.toJson(), element);
-        callback(null, element);
-      }
+const defaultConfig = require('../webpack.config.js');
+class Bob {
+  constructor(config=defaultConfig) {
+    this.compiler = webpack(config);
+  }
+
+  build(elementTree) {
+    return new Promise((resolve, reject) => {
+      compiler.run((err, stats) => {
+        if (err) {
+          reject(err);
+        } else if (stats.hasErrors()) {
+          console.log(`what the fuck ${stats.errors} ${stats.warnings}`);
+          reject([stats.errors, stats.warnings]);
+        } else {
+          element = replaceScripts(stats, lement);
+          resolve(swapAssets(stats, entry));
+        }
+      });
     });
   }
 }
+const bob = new Bob();
 
-const config = require('../webpack.config.js');
+import ReactNode from './react-node-utils';
 
-function main() {
-  const template = (
+function async main() {
+  let html = (
     <html>
       <head>
         <title>React Chess</title>
+        <Asset name="./src/chess.css" />
       </head>
       <body>
         <div id='root'></div>
-        <WebpackScript assetName="chess" />
+        <Asset name="./src/chess.js" />
       </body>
     </html>
   );
-
-  ReactWebpack.run(config, template, (err, element) => {
-    fs.writeFileSync(path.join(config.output.path, 'index.html'), ReactDOM.renderToStaticMarkup(element));
-  });
+  template = await bob.build(template);
+  console.log('uhhh');
+  ReactNode.writeFileSync('dist.c', template);
 }
 
 main();
