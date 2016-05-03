@@ -1,10 +1,11 @@
-import fs from 'fs';
 import path from 'path';
 
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom/server';
 
 import webpack from 'webpack';
+
+import elementFs from './element-fs';
 
 function Script({assetName}) {
   throw new Error('ReactWebpack did not replace this element');
@@ -60,7 +61,7 @@ class Bob {
   build(element) {
     return new Promise((resolve, reject) => {
       this.compiler.run((err, stats) => {
-        fs.writeFileSync('./poop.json', JSON.stringify(stats.toJson(), null, 2));
+        // fs.writeFileSync('./poop.json', JSON.stringify(stats.toJson(), null, 2));
         if (err) {
           reject(err);
         } else if (stats.hasErrors()) {
@@ -73,8 +74,6 @@ class Bob {
     });
   }
 }
-
-import ReactNode from './react-node-utils';
 
 const bob = new Bob();
 
@@ -92,11 +91,10 @@ async function main() {
   );
   try {
     template = await bob.build(template);
+    elementFs.writeFileSync('./dist/index.html', template);
   } catch (err) {
     console.log(err);
   }
-  console.log('uhhhh');
-  ReactNode.writeFileSync('./dist/index.html', template);
 }
 
 main();
