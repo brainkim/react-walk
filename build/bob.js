@@ -1,13 +1,14 @@
 import path from 'path';
 
-import React, { Component } from 'react';
+import React, {Component} from 'react';
 import ReactDOM from 'react-dom/server';
 
 import webpack from 'webpack';
 
+import {preWalk, postWalk} from './react-walk';
 import elementFs from './element-fs';
 
-function Script({assetName}) {
+function Script({name}) {
   throw new Error('ReactWebpack did not replace this element');
 }
 
@@ -30,27 +31,24 @@ function getAssetURL(assetsByChunkName, publicPath, chunkName) {
   if (asset != null) {
     return publicPath + asset;
   } else {
-    return '';
+    throw new Error(`Can\'t find asset ${chunkName}`);
   }
 }
 
 function replaceAssets(stats, element) {
   const {assetsByChunkName, publicPath} = stats.toJson();
-  if (element.type === Script) {
-    let name = element.props.name;
-    return (
-      <script src={getAssetURL(assetsByChunkName, publicPath, name)} />
-    );
-  } else {
-    return React.cloneElement(element, {...element.props}, React.Children.map(element.props.children, (child) => {
-      if (React.isValidElement(child)) {
-        return replaceAssets(stats, child);
-      } else {
-        return child;
-      }
-    }));
-  }
+  return postWalk(element, (element) => {
+    if (element.type === Script) {
+      const {name} = element.props;
+      return (
+        <script src={getAssetURL(assetsByChunkName, publicPath, name)} />
+      );
+    } else {
+      return element;
+    }
+  });
 }
+
 
 const defaultConfig = require('../webpack.config.js');
 class Bob {
@@ -65,8 +63,8 @@ class Bob {
         if (err) {
           reject(err);
         } else if (stats.hasErrors()) {
-          console.log(`what the fuck ${stats.errors} ${stats.warnings}`);
-          reject([stats.errors, stats.warnings]);
+          console.log(`what the fuck`);
+          reject(stats);
         } else {
           resolve(replaceAssets(stats, element));
         }
@@ -85,12 +83,13 @@ async function main() {
       </head>
       <body>
         <div id='root'></div>
-        <Script name="chess.js" />
+        <Script name={path.resolve(__dirname, "../src/chess.js")} />
       </body>
     </html>
   );
   try {
     template = await bob.build(template);
+    console.log(ReactDOM.renderToStaticMarkup(template));
     elementFs.writeFileSync('./dist/index.html', template);
   } catch (err) {
     console.log(err);
