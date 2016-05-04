@@ -8,11 +8,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 module.exports = {
   entry: { 
     chess: isProduction
-      ? [path.resolve(__dirname, './src/index')]
+      ? [path.resolve(__dirname, './src/chess')]
       : [
         'webpack-dev-server/client?http://localhost:1337',
         'webpack/hot/only-dev-server',
-        path.resolve(__dirname, './src/index'),
+        path.resolve(__dirname, './src/chess'),
       ],
   },
   output: {
@@ -39,7 +39,7 @@ module.exports = {
     loaders: [
       {
         test: /\.js$/,
-        loaders: ['react-hot', 'babel'],
+        loaders: ['react-hot-loader', 'babel-loader'],
         include: path.join(__dirname, 'src'),
       },
       {
