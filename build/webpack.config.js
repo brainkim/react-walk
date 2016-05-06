@@ -6,19 +6,19 @@ var ExtractTextPlugin = require('extract-text-webpack-plugin');
 const isProduction = process.env.NODE_ENV === 'production';
 
 module.exports = {
-  entry: { 
-    chess: isProduction
-      ? [path.resolve(__dirname, './src/chess')]
+  entry: {
+    'chess': isProduction
+      ? [path.resolve(__dirname, '../src/chess.js')]
       : [
         'webpack-dev-server/client?http://localhost:1337',
         'webpack/hot/only-dev-server',
-        path.resolve(__dirname, './src/chess'),
+        path.resolve(__dirname, '../src/chess'),
       ],
   },
   output: {
-    path: path.join(__dirname, 'dist'),
-    publicPath: '/',
-    filename: isProduction ? '[name].[hash].js' : '[name].js',
+    path: path.join(__dirname, '../dist'),
+    publicPath: '/static',
+    filename: isProduction ? '[name].[chunkhash].js' : '[name].js',
   },
   devtool: "source-map",
   plugins: isProduction
@@ -40,7 +40,7 @@ module.exports = {
       {
         test: /\.js$/,
         loaders: ['react-hot-loader', 'babel-loader'],
-        include: path.join(__dirname, 'src'),
+        include: path.join(__dirname, '../src'),
       },
       {
         test: /\.css$/,
@@ -58,6 +58,6 @@ module.exports = {
         test: /\.ohm$/,
         loaders: ['raw-loader'],
       },
-    ]
+    ],
   },
 };
