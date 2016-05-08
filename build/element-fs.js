@@ -1,10 +1,10 @@
-import fs from 'fs';
-import React from 'react';
-import ReactDOM from 'react-dom/server';
+const fs = require('fs');
+const React = require('react');
+const ReactDOM = require('react-dom/server');
 
-export default {
+module.exports = {
   writeFileSync(file, element) {
-    element = ReactDOM.renderToStaticMarkup(element);
-    fs.writeFileSync(file, element);
+    const markup = ReactDOM.renderToStaticMarkup(element);
+    fs.writeFileSync(file, markup);
   },
 };

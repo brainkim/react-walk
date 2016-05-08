@@ -1,24 +1,41 @@
-import React from 'react';
-function identity(element) { return element; }
+const React = require('react');
 
-export function walk(element, innerFn, outerFn) {
-  // NOTE( ͡° ͜ʖ ͡°): touching ur children
+exports.walk = walk;
+function walk(element, innerFn, outerFn) {
   const children = React.Children.map(element.props.children, (child) => {
     if (React.isValidElement(child)) {
       return innerFn(child);
     } else {
       return child;
     }
-    return innerFn(child);
   });
-  // NOTE(¯\_(ツ)_/¯): {...element.props} b/c otherwise React warns about `ref` and `key` not being a prop
-  return outerFn(React.cloneElement(element, {...element.props}, children));
+  return outerFn(React.cloneElement(element, {children}));
 }
 
-export function preWalk(element, transformFn) {
-  return walk(transformFn(element), (element) => preWalk(element, transformFn), identity);
+exports.preWalk = preWalk;
+function preWalk(element, transformFn) {
+  return walk(
+    transformFn(element),
+    (element) => preWalk(element, transformFn),
+    (element) => element
+  );
 }
 
-export function postWalk(element, transformFn) {
-  return walk(element, (element) => postWalk(element, transformFn), transformFn);
+exports.postWalk = postWalk;
+function postWalk(element, transformFn) {
+  return walk(
+    element,
+    (element) => postWalk(element, transformFn),
+    transformFn
+  );
+}
+
+exports.flatten = flatten;
+function flatten(element) {
+  const result = [];
+  postWalk(element, (element) => {
+    result.push(element);
+    return element;
+  });
+  return result;
 }

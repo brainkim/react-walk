@@ -1,18 +1,30 @@
-import path from 'path';
+const path = require('path');
+const url = require('url');
 
-import React, {Component} from 'react';
-import ReactDOM from 'react-dom/server';
+const React = require('react');
+const ReactDOM = require('react-dom/server');
 
-import webpack from 'webpack';
+const webpack = require('webpack');
+const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
-import {preWalk, postWalk} from './react-walk';
-import elementFs from './element-fs';
+const ReactWalk = require('./react-walk');
+const elementFs = require('./element-fs');
 
-function Script({name}) {
-  throw new Error('ReactWebpack did not replace this element');
+Script.propTypes = {
+  src: React.PropTypes.string.isRequired,
+};
+function Script({src}) {
+  throw new Error(`Bob didn't replace this element, sorry!`);
 }
 
-// NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map), a string (if there is a single asset).
+Link.propTypes = {
+  href: React.PropTypes.string.isRequired,
+};
+function Link({href}) {
+  throw new Error(`Bob didn't replace this element, sorry!`);
+}
+
+// NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
 function normalizeAssets(assets) {
   if (Array.isArray(assets)) {
     return assets;
@@ -23,48 +35,96 @@ function normalizeAssets(assets) {
   }
 }
 
-function getAssetURL(assetsByChunkName, publicPath, chunkName) {
-  let {name, ext} = path.parse(chunkName);
+function getAssetURL(assetsByChunkName, publicPath, filename) {
+  let {name, ext} = path.parse(filename);
   const assets = normalizeAssets(assetsByChunkName[name]);
-  const test = new RegExp(`${ext}$`, 'i');
-  const [asset] = assets.filter((a) => test.test(a));
+  const [asset] = assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a));
   if (asset != null) {
-    return publicPath + asset;
+    return `${publicPath}/${asset}`;
   } else {
-    throw new Error(`Can\'t find asset ${chunkName}`);
+    throw new Error(`Can't find asset ${filename}`);
   }
 }
 
 function replaceAssets(stats, element) {
   const {assetsByChunkName, publicPath} = stats.toJson();
-  return postWalk(element, (element) => {
-    if (element.type === Script) {
-      const {name} = element.props;
-      return (
-        <script src={getAssetURL(assetsByChunkName, publicPath, name)} />
-      );
-    } else {
-      return element;
+  return ReactWalk.postWalk(element, (element) => {
+    switch (element.type) {
+      case Link:
+        let {href} = element.props;
+        href = getAssetURL(assetsByChunkName, publicPath, href);
+        return (
+          <link {...element.props} href={href} />
+        );
+      case Script:
+        let {src} = element.props;
+        src = getAssetURL(assetsByChunkName, publicPath, src);
+        return (
+          <script {...element.props} src={src} />
+        );
+      default:
+        return element;
     }
   });
 }
 
+function extractAssets(element) {
+  let assets = ReactWalk.flatten(element).map((element) => {
+    switch (element.type) {
+      case Link:
+        return element.props.href;
+      case Script:
+        return element.props.src;
+    }
+  });
+  return assets.filter((asset) => asset);
+}
 
-const defaultConfig = require('../webpack.config.js');
+function createWebpackEntry(assets, assetdir) {
+  const entry = {};
+  assets.forEach((asset) => {
+    const {name} = path.parse(asset);
+    entry[name] = [path.resolve(assetdir, asset)];
+  });
+  return entry;
+}
+
+const fs = require('fs');
+const defaultConfig = require('./webpack.config.js')({
+  extract: true,
+});
 class Bob {
   constructor(config=defaultConfig) {
-    this.compiler = webpack(config);
+    this.config = config;
   }
 
-  build(element) {
+  build(element, assetdir, outputdir, publicPath='/static') {
+    // read from element tree for assets
+    const assets = extractAssets(element);
+    const entry = createWebpackEntry(assets, assetdir);
+    const output = {
+      path: path.join(outputdir, publicPath),
+      publicPath,
+      filename: '[name].[chunkhash].js',
+      chunkFilename: '[name].[chunkhash].js',
+    };
+    const plugins = [
+      new webpack.optimize.OccurrenceOrderPlugin(),
+      new ExtractTextPlugin('[name].[contenthash].css'),
+    ];
+    const compiler = webpack({
+      ...this.config,
+      entry,
+      output,
+      plugins,
+    });
+    // write to element tree with compiled assets
     return new Promise((resolve, reject) => {
-      this.compiler.run((err, stats) => {
-        // fs.writeFileSync('./poop.json', JSON.stringify(stats.toJson(), null, 2));
+      compiler.run((err, stats) => {
         if (err) {
           reject(err);
         } else if (stats.hasErrors()) {
-          console.log(`what the fuck`);
-          reject(stats);
+          reject(new Error(stats));
         } else {
           resolve(replaceAssets(stats, element));
         }
@@ -74,25 +134,32 @@ class Bob {
 }
 
 const bob = new Bob();
+const template = (
+  <html>
+    <head>
+      <title>React Chess</title>
+      <Link rel="stylesheet" type="text/css" href="chess.css" />
+    </head>
+    <body>
+      <div id="root" />
+      <Script src="chess.js" />
+    </body>
+  </html>
+);
+
+const rimraf = require('rimraf');
+const mkdirp = require('mkdirp');
 
 async function main() {
-  let template = (
-    <html>
-      <head>
-        <title>React Chess</title>
-      </head>
-      <body>
-        <div id='root'></div>
-        <Script name={path.resolve(__dirname, "../src/chess.js")} />
-      </body>
-    </html>
-  );
   try {
-    template = await bob.build(template);
-    console.log(ReactDOM.renderToStaticMarkup(template));
-    elementFs.writeFileSync('./dist/index.html', template);
+    const assetdir = path.resolve(__dirname, '../src');
+    const destdir = path.resolve(__dirname, '../dist');
+    rimraf.sync(destdir);
+    const compiledTemplate = await bob.build(template, assetdir, destdir);
+    console.log(ReactDOM.renderToStaticMarkup(compiledTemplate));
+    elementFs.writeFileSync(path.resolve(destdir, 'index.html'), compiledTemplate);
   } catch (err) {
-    console.log(err);
+    console.log(err.stack || err);
   }
 }
 
