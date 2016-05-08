@@ -9,17 +9,11 @@ const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 const ReactWalk = require('./react-walk');
 
-Script.propTypes = {
-  src: React.PropTypes.string.isRequired,
-};
-function Script({src}) {
+function Script() {
   throw new Error(`Bob didn't replace this element, sorry!`);
 }
 
-Link.propTypes = {
-  href: React.PropTypes.string.isRequired,
-};
-function Link({href}) {
+function Link() {
   throw new Error(`Bob didn't replace this element, sorry!`);
 }
 
@@ -34,14 +28,14 @@ function normalizeAssets(assets) {
   }
 }
 
-function getAssetURL(assetsByChunkName, publicPath, filename) {
-  let {name, ext} = path.parse(filename);
+function getAssetURL(assetsByChunkName, publicPath, name, ext) {
   const assets = normalizeAssets(assetsByChunkName[name]);
-  const [asset] = assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a));
+  const [asset] = assets.filter((a) => new RegExp(`\.${ext}$`, 'i').test(a));
   if (asset != null) {
-    return `${publicPath}/${asset}`;
+    return `${publicPath}${asset}`;
   } else {
-    throw new Error(`Can't find asset ${filename}`);
+    // throw new Error(`Can't find asset ${filename}`);
+    return null;
   }
 }
 
@@ -50,14 +44,12 @@ function replaceAssets(stats, element) {
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Link:
-        let {href} = element.props;
-        href = getAssetURL(assetsByChunkName, publicPath, href);
+        const href = getAssetURL(assetsByChunkName, publicPath, element.props.name, 'css');
         return (
           <link {...element.props} href={href} />
         );
       case Script:
-        let {src} = element.props;
-        src = getAssetURL(assetsByChunkName, publicPath, src);
+        const src = getAssetURL(assetsByChunkName, publicPath, element.props.name, 'js');
         return (
           <script {...element.props} src={src} />
         );
@@ -68,24 +60,50 @@ function replaceAssets(stats, element) {
 }
 
 function extractAssets(element) {
-  let assets = ReactWalk.flatten(element).map((element) => {
+  return ReactWalk.flatten(element).filter((element) => {
     switch (element.type) {
       case Link:
-        return element.props.href;
       case Script:
-        return element.props.src;
+        return true;
     }
   });
-  return assets.filter((asset) => asset);
 }
 
-function createWebpackEntry(assets, assetdir) {
+function createWebpackEntry(assets) {
   const entry = {};
   assets.forEach((asset) => {
-    const {name} = path.parse(asset);
-    entry[name] = [path.resolve(assetdir, asset)];
+    const {name, entryfile} = asset.props;
+    entry[name] = [entryfile];
   });
   return entry;
+}
+
+function createWebpackModule({cssExtractor}) {
+  return {
+    loaders: [
+      {
+        test: /\.js$/,
+        loaders: ['babel-loader'],
+        include: path.join(__dirname, '../src'),
+      },
+      {
+        test: /\.css$/,
+        loader: cssExtractor.extract('style-loader', 'css-loader'),
+      },
+      {
+        test: /\.svg$/,
+        loaders: ['file-loader'],
+      },
+      {
+        test: /\.pgn$/,
+        loaders: ['raw-loader'],
+      },
+      {
+        test: /\.ohm$/,
+        loaders: ['raw-loader'],
+      },
+    ],
+  };
 }
 
 const fs = require('fs');
@@ -97,26 +115,31 @@ class Bob {
     this.config = config;
   }
 
-  build(element, assetdir, outputdir, publicPath='/static') {
+  build(element, outputdir, publicPath='/static/') {
     // read from element tree for assets
     const assets = extractAssets(element);
-    const entry = createWebpackEntry(assets, assetdir);
+    const entry = createWebpackEntry(assets);
+    console.log(entry);
     const output = {
       path: path.join(outputdir, publicPath),
       publicPath,
       filename: '[name].[chunkhash].js',
       chunkFilename: '[name].[chunkhash].js',
     };
+    const cssExtractor = new ExtractTextPlugin('css', '[name].[contenthash].css');
     const plugins = [
       new webpack.optimize.OccurrenceOrderPlugin(),
-      new ExtractTextPlugin('[name].[contenthash].css'),
+      cssExtractor,
     ];
+    const module = createWebpackModule({
+      cssExtractor,
+    });
     const compiler = webpack({
       ...this.config,
-      context: assetdir,
       entry,
       output,
       plugins,
+      module,
     });
     // write to element tree with compiled assets
     return new Promise((resolve, reject) => {
@@ -138,11 +161,15 @@ const template = (
   <html>
     <head>
       <title>React Chess</title>
-      <Link rel="stylesheet" type="text/css" href="chess.css" />
+      <Link
+        rel="stylesheet"
+        type="text/css"
+        entryfile={path.resolve(__dirname, "../src/styles/reset.css")}
+        name="reset" />
     </head>
     <body>
       <div id="root" />
-      <Script src="chess.js" />
+      <Script entryfile={path.resolve(__dirname, "../src/chess.js")} name="chess" />
     </body>
   </html>
 );
@@ -150,10 +177,9 @@ const template = (
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
 async function main() {
-  const assetdir = path.resolve(__dirname, '../src');
   const destdir = path.resolve(__dirname, '../dist');
   rimraf.sync(destdir);
-  const compiledTemplate = await bob.build(template, assetdir, destdir);
+  const compiledTemplate = await bob.build(template, destdir);
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
   console.log(markup);
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
