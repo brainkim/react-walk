@@ -1,6 +1,8 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
+require('./styles/reset.css');
 
-import { App } from './components';
+const React = require('react');
+const ReactDOM = require('react-dom');
+
+const {App} = require('./components');
 
 ReactDOM.render(<App />, document.getElementById('root'));

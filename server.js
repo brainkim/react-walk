@@ -1,6 +1,9 @@
-var webpack = require('webpack');
-var WebpackDevServer = require('webpack-dev-server');
-var config = require('./build/webpack.config.js');
+require('babel-register');
+const webpack = require('webpack');
+const WebpackDevServer = require('webpack-dev-server');
+const config = require('./build/webpack.config.js')({
+  extract: false,
+});
 
 new WebpackDevServer(webpack(config), {
   stats: 'errors-only',

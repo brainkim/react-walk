@@ -5,59 +5,55 @@ var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-module.exports = {
-  entry: {
-    'chess': isProduction
-      ? [path.resolve(__dirname, '../src/chess.js')]
-      : [
+
+module.exports = function createWebpackConfig({extract=false, production=false}) {
+  return {
+    entry: {
+      'chess': [
         'webpack-dev-server/client?http://localhost:1337',
         'webpack/hot/only-dev-server',
         path.resolve(__dirname, '../src/chess'),
       ],
-  },
-  output: {
-    path: path.join(__dirname, '../dist'),
-    publicPath: '/static',
-    filename: isProduction ? '[name].[chunkhash].js' : '[name].js',
-  },
-  devtool: "source-map",
-  plugins: isProduction
-    ? [
-      new webpack.DefinePlugin({
-        'process.env': {
-          'NODE_ENV': JSON.stringify('production')
-        }
+    },
+    output: {
+      path: path.join(__dirname, '../dist/static/'),
+      publicPath: '/static',
+      filename: isProduction ? '[name].[chunkhash].js' : '[name].js',
+    },
+    devtool: "source-map",
+    plugins: [
+      new ExtractTextPlugin('[name].[contenthash].css', {
+        disable: !extract,
       }),
-      new webpack.optimize.OccurrenceOrderPlugin(true),
-      new webpack.optimize.UglifyJsPlugin(),
-      new ExtractTextPlugin('[name].css'),
-    ]
-    : [
+      new webpack.optimize.OccurrenceOrderPlugin(),
       new webpack.HotModuleReplacementPlugin(),
     ],
-  module: {
-    loaders: [
-      {
-        test: /\.js$/,
-        loaders: ['react-hot-loader', 'babel-loader'],
-        include: path.join(__dirname, '../src'),
-      },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
-      },
-      {
-        test: /\.svg$/,
-        loaders: ['url-loader'],
-      },
-      {
-        test: /\.pgn$/,
-        loaders: ['raw-loader'],
-      },
-      {
-        test: /\.ohm$/,
-        loaders: ['raw-loader'],
-      },
-    ],
-  },
+    module: {
+      loaders: [
+        {
+          test: /\.js$/,
+          loaders: ['react-hot-loader', 'babel-loader'],
+          include: path.join(__dirname, '../src'),
+        },
+        {
+          test: /\.css$/,
+          loader: extract
+            ? ExtractTextPlugin.extract('style-loader', 'css-loader')
+            : 'style-loader!css-loader',
+        },
+        {
+          test: /\.svg$/,
+          loaders: ['url-loader'],
+        },
+        {
+          test: /\.pgn$/,
+          loaders: ['raw-loader'],
+        },
+        {
+          test: /\.ohm$/,
+          loaders: ['raw-loader'],
+        },
+      ],
+    },
+  }
 };
