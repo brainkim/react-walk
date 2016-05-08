@@ -8,7 +8,6 @@ const webpack = require('webpack');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 const ReactWalk = require('./react-walk');
-const elementFs = require('./element-fs');
 
 Script.propTypes = {
   src: React.PropTypes.string.isRequired,
@@ -156,8 +155,9 @@ async function main() {
     const destdir = path.resolve(__dirname, '../dist');
     rimraf.sync(destdir);
     const compiledTemplate = await bob.build(template, assetdir, destdir);
-    console.log(ReactDOM.renderToStaticMarkup(compiledTemplate));
-    elementFs.writeFileSync(path.resolve(destdir, 'index.html'), compiledTemplate);
+    const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
+    console.log(markup);
+    fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
   } catch (err) {
     console.log(err.stack || err);
   }
