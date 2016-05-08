@@ -3,9 +3,6 @@ var webpack = require('webpack');
 
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
-const isProduction = process.env.NODE_ENV === 'production';
-
-
 module.exports = function createWebpackConfig({extract=false, production=false}) {
   return {
     entry: {
@@ -18,7 +15,7 @@ module.exports = function createWebpackConfig({extract=false, production=false})
     output: {
       path: path.join(__dirname, '../dist/static/'),
       publicPath: '/static',
-      filename: isProduction ? '[name].[chunkhash].js' : '[name].js',
+      filename: production ? '[name].[chunkhash].js' : '[name].js',
     },
     devtool: "source-map",
     plugins: [
