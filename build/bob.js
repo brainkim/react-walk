@@ -113,6 +113,7 @@ class Bob {
     ];
     const compiler = webpack({
       ...this.config,
+      context: assetdir,
       entry,
       output,
       plugins,
@@ -148,19 +149,14 @@ const template = (
 
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
-
 async function main() {
-  try {
-    const assetdir = path.resolve(__dirname, '../src');
-    const destdir = path.resolve(__dirname, '../dist');
-    rimraf.sync(destdir);
-    const compiledTemplate = await bob.build(template, assetdir, destdir);
-    const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
-    console.log(markup);
-    fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
-  } catch (err) {
-    console.log(err.stack || err);
-  }
+  const assetdir = path.resolve(__dirname, '../src');
+  const destdir = path.resolve(__dirname, '../dist');
+  rimraf.sync(destdir);
+  const compiledTemplate = await bob.build(template, assetdir, destdir);
+  const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
+  console.log(markup);
+  fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
 }
 
 main();
