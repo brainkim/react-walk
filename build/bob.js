@@ -1,5 +1,5 @@
+const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
 const React = require('react');
 const ReactDOM = require('react-dom/server');
@@ -9,6 +9,7 @@ const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 const ReactWalk = require('./react-walk');
 
+// TODO(brian): add propTypes when api stabilizes
 function Script() {
   throw new Error(`Bob didn't replace this element, sorry!`);
 }
@@ -41,6 +42,8 @@ function getAssetURL(assetsByChunkName, publicPath, name, ext) {
 
 function replaceAssets(stats, element) {
   const {assetsByChunkName, publicPath} = stats.toJson();
+  fs.writeFileSync('poop.json', JSON.stringify(stats.toJson(), null, 2));
+
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Link:
@@ -59,7 +62,7 @@ function replaceAssets(stats, element) {
   });
 }
 
-function extractAssets(element) {
+function extractAssetElements(element) {
   return ReactWalk.flatten(element).filter((element) => {
     switch (element.type) {
       case Link:
@@ -69,78 +72,71 @@ function extractAssets(element) {
   });
 }
 
-function createWebpackEntry(assets) {
+function createWebpackEntry(element) {
+  const assetElements = extractAssetElements(element);
   const entry = {};
-  assets.forEach((asset) => {
+  assetElements.forEach((asset) => {
     const {name, entryfile} = asset.props;
-    entry[name] = [entryfile];
+    entry[name] = `babel-loader!${entryfile}`;
   });
   return entry;
 }
 
-function createWebpackModule({cssExtractor}) {
+function createWebpackModule() {
   return {
     loaders: [
       {
         test: /\.js$/,
-        loaders: ['babel-loader'],
+        loader: 'babel-loader',
         include: path.join(__dirname, '../src'),
       },
       {
         test: /\.css$/,
-        loader: cssExtractor.extract('style-loader', 'css-loader'),
+        loader: ExtractTextPlugin.extract('css-loader'),
       },
       {
         test: /\.svg$/,
-        loaders: ['file-loader'],
+        loader: 'file-loader',
       },
       {
         test: /\.pgn$/,
-        loaders: ['raw-loader'],
+        loader: 'raw-loader',
       },
       {
         test: /\.ohm$/,
-        loaders: ['raw-loader'],
+        loader: 'raw-loader',
       },
     ],
   };
 }
 
-const fs = require('fs');
-const defaultConfig = require('./webpack.config.js')({
-  extract: true,
-});
 class Bob {
-  constructor(config=defaultConfig) {
-    this.config = config;
+  constructor() {
+    this.cache = {};
   }
 
-  build(element, outputdir, publicPath='/static/') {
+  build(element, outputdir, publicUrl) {
     // read from element tree for assets
-    const assets = extractAssets(element);
-    const entry = createWebpackEntry(assets);
-    console.log(entry);
+    const entry = createWebpackEntry(element);
     const output = {
-      path: path.join(outputdir, publicPath),
-      publicPath,
+      path: outputdir,
+      publicPath: publicUrl,
       filename: '[name].[chunkhash].js',
       chunkFilename: '[name].[chunkhash].js',
     };
-    const cssExtractor = new ExtractTextPlugin('css', '[name].[contenthash].css');
     const plugins = [
       new webpack.optimize.OccurrenceOrderPlugin(),
-      cssExtractor,
+      new ExtractTextPlugin('[name].[contenthash].css'),
     ];
-    const module = createWebpackModule({
-      cssExtractor,
-    });
+    const module = createWebpackModule();
     const compiler = webpack({
-      ...this.config,
+      devtool: null,
       entry,
       output,
       plugins,
       module,
     });
+
     // write to element tree with compiled assets
     return new Promise((resolve, reject) => {
       compiler.run((err, stats) => {
@@ -156,33 +152,54 @@ class Bob {
   }
 }
 
-const bob = new Bob();
-const template = (
+const bob = new Bob({});
+const template1 = (
   <html>
     <head>
       <title>React Chess</title>
       <Link
         rel="stylesheet"
         type="text/css"
-        entryfile={path.resolve(__dirname, "../src/styles/reset.css")}
-        name="reset" />
+        name="reset"
+        entryfile={path.resolve(__dirname, "../src/styles/reset.css")} />
     </head>
     <body>
       <div id="root" />
-      <Script entryfile={path.resolve(__dirname, "../src/chess.js")} name="chess" />
+      <Script
+        name="chess"
+        entryfile={path.resolve(__dirname, "../src/chess.js")} />
+    </body>
+  </html>
+);
+
+const template2 = (
+  <html>
+    <head>
+      <title>React Chess</title>
+      <Link
+        rel="stylesheet"
+        type="text/css"
+        entryfile={path.join(__dirname, "../src/chess.js")}
+        name="chess" />
+    </head>
+    <body>
+      <div id="root" />
+      <Script entryfile={path.join(__dirname, "../src/chess2.js")} name="chess" />
     </body>
   </html>
 );
 
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
+
 async function main() {
-  const destdir = path.resolve(__dirname, '../dist');
+  const destdir = path.join(__dirname, '../dist/');
+  const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
-  const compiledTemplate = await bob.build(template, destdir);
+  const compiledTemplate = await bob.build(template1, staticdir, '/static/');
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
   console.log(markup);
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
 }
-
+ 
 main();
