@@ -6,6 +6,7 @@ const ReactDOM = require('react-dom/server');
 
 const webpack = require('webpack');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
+const webpackNodeExternals = require('webpack-node-externals');
 
 const ReactWalk = require('./react-walk');
 
@@ -16,6 +17,25 @@ function Script() {
 
 function Link() {
   throw new Error(`Bob didn't replace this element, sorry!`);
+}
+
+function Fragment() {
+  throw new Error(`Bob didn't replace this element, sorry!`);
+}
+
+// webpack utilities
+function runCompilerAsync(compiler) {
+  return new Promise((resolve, reject) => {
+    compiler.run((err, stats) => {
+      if (err) {
+        reject(err);
+      } else if (stats.hasErrors()) {
+        reject(new Error(stats.toString({chunks: false})));
+      } else {
+        resolve(stats.toJson());
+      }
+    });
+  });
 }
 
 // NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
@@ -41,8 +61,10 @@ function getAssetURL(assetsByChunkName, publicPath, name, ext) {
 }
 
 function replaceAssets(stats, element) {
-  const {assetsByChunkName, publicPath} = stats.toJson();
-  fs.writeFileSync('poop.json', JSON.stringify(stats.toJson(), null, 2));
+  if (stats.children != null) {
+    [stats] = stats.children.filter((child) => child.name === 'client');
+  }
+  const {assetsByChunkName, publicPath} = stats;
 
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
@@ -62,93 +84,130 @@ function replaceAssets(stats, element) {
   });
 }
 
-function extractAssetElements(element) {
-  return ReactWalk.flatten(element).filter((element) => {
+function replaceFragments(stats, element) {
+  if (stats.children != null) {
+    [stats] = stats.children.filter((child) => child.name === 'server');
+  }
+  const {assetsByChunkName} = stats;
+  return ReactWalk.postWalk(element, (element) => {
+    switch (element.type) {
+      case Fragment:
+        const assetFilepath = path.join(__dirname, '../server-dist', assetsByChunkName[element.props.name]);
+        const component = require(assetFilepath).default;
+        const element1 = React.createElement(component);
+        const __html = ReactDOM.renderToString(element1); 
+        return (
+          <div
+            id={element.props.id}
+            dangerouslySetInnerHTML={{__html}} />
+        );
+      default:
+        return element;
+    }
+  });
+}
+
+function extractAssets(page) {
+  return ReactWalk.flatten(page).filter((element) => {
     switch (element.type) {
       case Link:
       case Script:
+      case Fragment:
         return true;
     }
   });
 }
 
-function createWebpackEntry(element) {
-  const assetElements = extractAssetElements(element);
+function createWebpackEntry(page) {
+  const assets = extractAssets(page);
   const entry = {};
-  assetElements.forEach((asset) => {
+  assets.forEach((asset) => {
     const {name, entryfile} = asset.props;
-    entry[name] = `babel-loader!${entryfile}`;
+    entry[name] = [entryfile];
   });
   return entry;
 }
 
-function createWebpackModule() {
-  return {
-    loaders: [
-      {
-        test: /\.js$/,
-        loader: 'babel-loader',
-        include: path.join(__dirname, '../src'),
+const defaultModule = {
+  loaders: [
+    {
+      test: /\.js$/,
+      loader: 'babel-loader',
+      include: path.join(__dirname, '../src'),
+    },
+    {
+      test: /\.css$/,
+      loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
+    },
+    {
+      test: /\.svg$/,
+      loader: 'file-loader',
+      query: {
+        name: '[name].[ext]',
       },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract('css-loader'),
-      },
-      {
-        test: /\.svg$/,
-        loader: 'file-loader',
-      },
-      {
-        test: /\.pgn$/,
-        loader: 'raw-loader',
-      },
-      {
-        test: /\.ohm$/,
-        loader: 'raw-loader',
-      },
-    ],
-  };
-}
+    },
+    {
+      test: /\.pgn$/,
+      loader: 'raw-loader',
+    },
+    {
+      test: /\.ohm$/,
+      loader: 'raw-loader',
+    },
+  ],
+};
 
 class Bob {
   constructor() {
-    this.cache = {};
+    this._cache = {};
   }
 
-  build(element, outputdir, publicUrl) {
+  async build(page, outputdir, publicUrl) {
     // read from element tree for assets
-    const entry = createWebpackEntry(element);
-    const output = {
+    const entry = createWebpackEntry(page);
+    const clientOutput = {
       path: outputdir,
       publicPath: publicUrl,
       filename: '[name].[chunkhash].js',
       chunkFilename: '[name].[chunkhash].js',
     };
+    const serverOutput = {
+      path: path.join(__dirname, '../server-dist/'),
+      publicPath: publicUrl,
+      filename: '[name].js',
+      chunkFilename: '[name].js',
+      libraryTarget: 'commonjs2',
+    };
     const plugins = [
       new webpack.optimize.OccurrenceOrderPlugin(),
       new ExtractTextPlugin('[name].[contenthash].css'),
     ];
-    const module = createWebpackModule();
-    const compiler = webpack({
-      devtool: null,
-      entry,
-      output,
-      plugins,
-      module,
-    });
+    const module = defaultModule;
+    const compiler = webpack([
+      {
+        name: 'client',
+        devtool: null,
+        entry,
+        output: clientOutput,
+        module,
+        plugins,
+      },
+      {
+        name: 'server',
+        target: 'node',
+        entry,
+        output: serverOutput,
+        externals: [webpackNodeExternals()],
+        module,
+        plugins,
+      },
+    ]);
 
     // write to element tree with compiled assets
-    return new Promise((resolve, reject) => {
-      compiler.run((err, stats) => {
-        if (err) {
-          reject(err);
-        } else if (stats.hasErrors()) {
-          reject(new Error(stats));
-        } else {
-          resolve(replaceAssets(stats, element));
-        }
-      });
-    });
+    const stats = await runCompilerAsync(compiler);
+    page = replaceAssets(stats, page);
+    page = replaceFragments(stats, page);
+    return page;
   }
 }
 
@@ -164,27 +223,13 @@ const template1 = (
         entryfile={path.resolve(__dirname, "../src/styles/reset.css")} />
     </head>
     <body>
-      <div id="root" />
+      <Fragment
+        id="root"
+        name="app"
+        entryfile={path.resolve(__dirname, "../src/components.js")} />
       <Script
         name="chess"
         entryfile={path.resolve(__dirname, "../src/chess.js")} />
-    </body>
-  </html>
-);
-
-const template2 = (
-  <html>
-    <head>
-      <title>React Chess</title>
-      <Link
-        rel="stylesheet"
-        type="text/css"
-        entryfile={path.join(__dirname, "../src/chess.js")}
-        name="chess" />
-    </head>
-    <body>
-      <div id="root" />
-      <Script entryfile={path.join(__dirname, "../src/chess2.js")} name="chess" />
     </body>
   </html>
 );
