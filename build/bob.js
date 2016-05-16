@@ -5,10 +5,14 @@ const React = require('react');
 const ReactDOM = require('react-dom/server');
 
 const webpack = require('webpack');
+const MemoryFileSystem = require('memory-fs');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const webpackNodeExternals = require('webpack-node-externals');
 
 const ReactWalk = require('./react-walk');
+
+const rimraf = require('rimraf');
+const mkdirp = require('mkdirp');
 
 // TODO(brian): add propTypes when api stabilizes
 function Script() {
@@ -19,6 +23,9 @@ function Link() {
   throw new Error(`Bob didn't replace this element, sorry!`);
 }
 
+Fragment.defaultProps = {
+  wrapper: 'div',
+};
 function Fragment() {
   throw new Error(`Bob didn't replace this element, sorry!`);
 }
@@ -30,7 +37,11 @@ function runCompilerAsync(compiler) {
       if (err) {
         reject(err);
       } else if (stats.hasErrors()) {
-        reject(new Error(stats.toString({chunks: false})));
+        // TODO(brian):
+        reject(new Error(stats.toString({
+          assets: false,
+          chunks: false,
+        })));
       } else {
         resolve(stats.toJson());
       }
@@ -40,10 +51,10 @@ function runCompilerAsync(compiler) {
 
 // NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
 function normalizeAssets(assets) {
-  if (Array.isArray(assets)) {
-    return assets;
-  } else if (typeof assets === 'string') {
+  if (typeof assets === 'string') {
     return [assets];
+  } else if (Array.isArray(assets)) {
+    return assets;
   } else {
     return [];
   }
@@ -84,7 +95,15 @@ function replaceAssets(stats, element) {
   });
 }
 
-function replaceFragments(stats, element) {
+const Module = require('module');
+function requireFromString(str, filename) {
+  const _module = new Module();
+  _module.paths = module.paths;
+  _module._compile(str, filename);
+  return _module.exports;
+}
+
+function replaceFragments(fs, stats, element) {
   if (stats.children != null) {
     [stats] = stats.children.filter((child) => child.name === 'server');
   }
@@ -92,15 +111,20 @@ function replaceFragments(stats, element) {
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Fragment:
-        const assetFilepath = path.join(__dirname, '../server-dist', assetsByChunkName[element.props.name]);
-        const component = require(assetFilepath).default;
-        const element1 = React.createElement(component);
-        const __html = ReactDOM.renderToString(element1); 
-        return (
-          <div
-            id={element.props.id}
-            dangerouslySetInnerHTML={{__html}} />
-        );
+        const {id, name, wrapper, entryfile, ...props} = element.props;
+        const assetFilepath = path.join('/server', assetsByChunkName[name]);
+        const assetSrc = fs.readFileSync(assetFilepath, 'utf8');
+        require('fs').writeFileSync('poop.js', assetSrc);
+
+        let component = requireFromString(assetSrc, entryfile);
+        if (component.default != null) {
+          component = component.default;
+        }
+        const element1 = React.createElement(component, props);
+        return React.createElement(wrapper, {
+          id: id,
+          dangerouslySetInnerHTML: {__html: ReactDOM.renderToString(element1)},
+        });
       default:
         return element;
     }
@@ -112,17 +136,35 @@ function extractAssets(page) {
     switch (element.type) {
       case Link:
       case Script:
+        return true;
+    }
+  });
+}
+
+function extractFragments(page) {
+  return ReactWalk.flatten(page).filter((element) => {
+    switch (element.type) {
       case Fragment:
         return true;
     }
   });
 }
 
-function createWebpackEntry(page) {
+function createWebpackClientEntry(page) {
   const assets = extractAssets(page);
   const entry = {};
   assets.forEach((asset) => {
     const {name, entryfile} = asset.props;
+    entry[name] = [entryfile];
+  });
+  return entry;
+}
+
+function createWebpackServerEntry(page) {
+  const fragments = extractFragments(page);
+  const entry = {};
+  fragments.forEach((fragment) => {
+    const {name, entryfile} = fragment.props;
     entry[name] = [entryfile];
   });
   return entry;
@@ -164,15 +206,14 @@ class Bob {
 
   async build(page, outputdir, publicUrl) {
     // read from element tree for assets
-    const entry = createWebpackEntry(page);
     const clientOutput = {
-      path: outputdir,
+      path: '/client',
       publicPath: publicUrl,
       filename: '[name].[chunkhash].js',
       chunkFilename: '[name].[chunkhash].js',
     };
     const serverOutput = {
-      path: path.join(__dirname, '../server-dist/'),
+      path: '/server',
       publicPath: publicUrl,
       filename: '[name].js',
       chunkFilename: '[name].js',
@@ -187,31 +228,45 @@ class Bob {
       {
         name: 'client',
         devtool: null,
-        entry,
+        entry: createWebpackClientEntry(page),
         output: clientOutput,
         module,
         plugins,
       },
       {
         name: 'server',
-        target: 'node',
-        entry,
+        devtool: null,
+        entry: createWebpackServerEntry(page),
         output: serverOutput,
         externals: [webpackNodeExternals()],
         module,
         plugins,
+        target: 'node',
       },
     ]);
+    console.time('jewels');
+    const compilerFs = compiler.outputFileSystem = new MemoryFileSystem();
 
     // write to element tree with compiled assets
     const stats = await runCompilerAsync(compiler);
+    console.timeEnd('jewels');
+    mkdirp.sync(outputdir);
+    compilerFs.readdirSync('/client').forEach((file) => {
+      const filepath = path.join('/client/', file);
+      const stat = compilerFs.statSync(filepath);
+      if (stat.isFile()) {
+        const read = compilerFs.createReadStream(filepath);
+        const write = fs.createWriteStream(path.join(outputdir, file));
+        read.pipe(write);
+      }
+    });
     page = replaceAssets(stats, page);
-    page = replaceFragments(stats, page);
+    page = replaceFragments(compilerFs, stats, page);
     return page;
   }
 }
 
-const bob = new Bob({});
+const bob = new Bob();
 const template1 = (
   <html>
     <head>
@@ -219,7 +274,7 @@ const template1 = (
       <Link
         rel="stylesheet"
         type="text/css"
-        name="reset"
+        name="styles/reset"
         entryfile={path.resolve(__dirname, "../src/styles/reset.css")} />
     </head>
     <body>
@@ -229,13 +284,11 @@ const template1 = (
         entryfile={path.resolve(__dirname, "../src/components.js")} />
       <Script
         name="chess"
+        async={true}
         entryfile={path.resolve(__dirname, "../src/chess.js")} />
     </body>
   </html>
 );
-
-const rimraf = require('rimraf');
-const mkdirp = require('mkdirp');
 
 async function main() {
   const destdir = path.join(__dirname, '../dist/');
@@ -243,7 +296,6 @@ async function main() {
   rimraf.sync(destdir);
   const compiledTemplate = await bob.build(template1, staticdir, '/static/');
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
-  console.log(markup);
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
 }
  
