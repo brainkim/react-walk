@@ -170,6 +170,21 @@ function createWebpackServerEntry(page) {
   return entry;
 }
 
+function copydirSync(fromFs, fromPath, toFs, toPath) {
+  const stat = fromFs.statSync(fromPath);
+  if (stat.isFile()) {
+    toFs.writeFileSync(toPath, fromFs.readFileSync(fromPath));
+  } else if (stat.isDirectory()) {
+    mkdirp.sync(toPath);
+    fromFs.readdirSync(fromPath).forEach((dir) => {
+      copydirSync(
+        fromFs, path.join(fromPath, dir),
+        toFs, path.join(toPath, dir)
+      );
+    });
+  }
+}
+
 const defaultModule = {
   loaders: [
     {
@@ -250,16 +265,8 @@ class Bob {
     // write to element tree with compiled assets
     const stats = await runCompilerAsync(compiler);
     console.timeEnd('jewels');
-    mkdirp.sync(outputdir);
-    compilerFs.readdirSync('/client').forEach((file) => {
-      const filepath = path.join('/client/', file);
-      const stat = compilerFs.statSync(filepath);
-      if (stat.isFile()) {
-        const read = compilerFs.createReadStream(filepath);
-        const write = fs.createWriteStream(path.join(outputdir, file));
-        read.pipe(write);
-      }
-    });
+
+    copydirSync(compilerFs, '/client', fs, outputdir);
     page = replaceAssets(stats, page);
     page = replaceFragments(compilerFs, stats, page);
     return page;
