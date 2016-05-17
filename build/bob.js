@@ -14,6 +14,7 @@ const ReactWalk = require('./react-walk');
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
 
+
 // TODO(brian): add propTypes when api stabilizes
 function Script() {
   throw new Error(`Bob didn't replace this element, sorry!`);
@@ -60,9 +61,15 @@ function normalizeAssets(assets) {
   }
 }
 
-function getAssetURL(assetsByChunkName, publicPath, name, ext) {
+function getAsset(assetsByChunkName, name, ext) {
   const assets = normalizeAssets(assetsByChunkName[name]);
   const [asset] = assets.filter((a) => new RegExp(`\.${ext}$`, 'i').test(a));
+  return asset;
+}
+
+function getAssetURL(assetsByChunkName, publicPath, name, ext) {
+  const asset = getAsset(assetsByChunkName, name, ext);
+
   if (asset != null) {
     return `${publicPath}${asset}`;
   } else {
@@ -96,6 +103,7 @@ function replaceAssets(stats, element) {
 }
 
 const Module = require('module');
+
 function requireFromString(str, filename) {
   const _module = new Module();
   _module.paths = module.paths;
@@ -112,10 +120,11 @@ function replaceFragments(fs, stats, element) {
     switch (element.type) {
       case Fragment:
         const {id, name, wrapper, entryfile, ...props} = element.props;
-        const assetFilepath = path.join('/server', assetsByChunkName[name]);
-        const assetSrc = fs.readFileSync(assetFilepath, 'utf8');
+        const asset = getAsset(assetsByChunkName, name, 'js');
+        const assetFilepath = path.join('/server', asset);
+        let assetSrc = fs.readFileSync(assetFilepath, 'utf8');
+        assetSrc = `require('source-map-support').install();\n` + assetSrc;
         require('fs').writeFileSync('poop.js', assetSrc);
-
         let component = requireFromString(assetSrc, entryfile);
         if (component.default != null) {
           component = component.default;
@@ -185,6 +194,18 @@ function copydirSync(fromFs, fromPath, toFs, toPath) {
   }
 }
 
+function registerSourceMaps(fs, stats) {
+  if (stats.children != null) {
+    [stats] = stats.children.filter((child) => child.name === 'server');
+  }
+  const {assetsByChunkName} = stats;
+  // TODO(brian): how to register source maps?
+  require('source-map-support').install({
+    retrieveSourceMap: function(source) {
+    },
+});
+}
+
 const defaultModule = {
   loaders: [
     {
@@ -242,6 +263,7 @@ class Bob {
     const compiler = webpack([
       {
         name: 'client',
+        context: path.join(__dirname, '../src'),
         devtool: null,
         entry: createWebpackClientEntry(page),
         output: clientOutput,
@@ -250,7 +272,8 @@ class Bob {
       },
       {
         name: 'server',
-        devtool: null,
+        context: path.join(__dirname, '../src'),
+        devtool: 'source-map',
         entry: createWebpackServerEntry(page),
         output: serverOutput,
         externals: [webpackNodeExternals()],
@@ -267,6 +290,7 @@ class Bob {
     console.timeEnd('jewels');
 
     copydirSync(compilerFs, '/client', fs, outputdir);
+    registerSourceMaps(compilerFs, stats);
     page = replaceAssets(stats, page);
     page = replaceFragments(compilerFs, stats, page);
     return page;
@@ -282,17 +306,17 @@ const template1 = (
         rel="stylesheet"
         type="text/css"
         name="styles/reset"
-        entryfile={path.resolve(__dirname, "../src/styles/reset.css")} />
+        entryfile="./styles/reset.css" />
     </head>
     <body>
       <Fragment
         id="root"
         name="app"
-        entryfile={path.resolve(__dirname, "../src/components.js")} />
+        entryfile="./poop/components.js" />
       <Script
         name="chess"
         async={true}
-        entryfile={path.resolve(__dirname, "../src/chess.js")} />
+        entryfile="./chess.js" />
     </body>
   </html>
 );
@@ -301,6 +325,7 @@ async function main() {
   const destdir = path.join(__dirname, '../dist/');
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
+
   const compiledTemplate = await bob.build(template1, staticdir, '/static/');
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
