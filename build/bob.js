@@ -67,15 +67,9 @@ function getAsset(assetsByChunkName, name, ext) {
   return asset;
 }
 
-function getAssetURL(assetsByChunkName, publicPath, name, ext) {
-  const asset = getAsset(assetsByChunkName, name, ext);
-
-  if (asset != null) {
-    return `${publicPath}${asset}`;
-  } else {
-    // throw new Error(`Can't find asset ${filename}`);
-    return null;
-  }
+function getNameFromEntryFile(entryfile, context) {
+  const relative = path.relative(context, entryfile);
+  return relative;
 }
 
 function replaceAssets(stats, element) {
@@ -87,12 +81,12 @@ function replaceAssets(stats, element) {
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Link:
-        const href = getAssetURL(assetsByChunkName, publicPath, element.props.name, 'css');
+        const href = publicPath + getAsset(assetsByChunkName, element.props.entryfile, 'css');
         return (
           <link {...element.props} href={href} />
         );
       case Script:
-        const src = getAssetURL(assetsByChunkName, publicPath, element.props.name, 'js');
+        const src = publicPath + getAsset(assetsByChunkName, element.props.entryfile, 'js');
         return (
           <script {...element.props} src={src} />
         );
@@ -119,12 +113,10 @@ function replaceFragments(fs, stats, element) {
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Fragment:
-        const {id, name, wrapper, entryfile, ...props} = element.props;
-        const asset = getAsset(assetsByChunkName, name, 'js');
-        const assetFilepath = path.join('/server', asset);
-        let assetSrc = fs.readFileSync(assetFilepath, 'utf8');
-        assetSrc = `require('source-map-support').install();\n` + assetSrc;
-        require('fs').writeFileSync('poop.js', assetSrc);
+        const {id, wrapper, entryfile, ...props} = element.props;
+        const asset = getAsset(assetsByChunkName, entryfile, 'js');
+        const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
+        require('fs').writeFileSync('poop.js', assetSrc)
         let component = requireFromString(assetSrc, entryfile);
         if (component.default != null) {
           component = component.default;
@@ -163,8 +155,8 @@ function createWebpackClientEntry(page) {
   const assets = extractAssets(page);
   const entry = {};
   assets.forEach((asset) => {
-    const {name, entryfile} = asset.props;
-    entry[name] = [entryfile];
+    const {entryfile} = asset.props;
+    entry[entryfile] = [entryfile];
   });
   return entry;
 }
@@ -173,8 +165,8 @@ function createWebpackServerEntry(page) {
   const fragments = extractFragments(page);
   const entry = {};
   fragments.forEach((fragment) => {
-    const {name, entryfile} = fragment.props;
-    entry[name] = [entryfile];
+    const {entryfile} = fragment.props;
+    entry[entryfile] = [entryfile];
   });
   return entry;
 }
@@ -200,10 +192,12 @@ function registerSourceMaps(fs, stats) {
   }
   const {assetsByChunkName} = stats;
   // TODO(brian): how to register source maps?
-  require('source-map-support').install({
-    retrieveSourceMap: function(source) {
-    },
-});
+  // require('source-map-support').install({
+  //   retrieveSourceMap: function(source) {
+  //     console.log(source);
+  //     return null;
+  //   },
+  // });
 }
 
 const defaultModule = {
@@ -236,29 +230,21 @@ const defaultModule = {
 };
 
 class Bob {
-  constructor() {
-    this._cache = {};
-  }
-
   async build(page, outputdir, publicUrl) {
     // read from element tree for assets
     const clientOutput = {
       path: '/client',
       publicPath: publicUrl,
-      filename: '[name].[chunkhash].js',
-      chunkFilename: '[name].[chunkhash].js',
+      filename: '[name]',
+      chunkFilename: '[name]',
     };
     const serverOutput = {
       path: '/server',
       publicPath: publicUrl,
-      filename: '[name].js',
-      chunkFilename: '[name].js',
+      filename: '[name]',
+      chunkFilename: '[name]',
       libraryTarget: 'commonjs2',
     };
-    const plugins = [
-      new webpack.optimize.OccurrenceOrderPlugin(),
-      new ExtractTextPlugin('[name].[contenthash].css'),
-    ];
     const module = defaultModule;
     const compiler = webpack([
       {
@@ -268,7 +254,10 @@ class Bob {
         entry: createWebpackClientEntry(page),
         output: clientOutput,
         module,
-        plugins,
+        plugins: [
+          new webpack.optimize.OccurrenceOrderPlugin(),
+          new ExtractTextPlugin('[name].css'),
+        ],
       },
       {
         name: 'server',
@@ -278,7 +267,9 @@ class Bob {
         output: serverOutput,
         externals: [webpackNodeExternals()],
         module,
-        plugins,
+        plugins: [
+          new webpack.BannerPlugin(`require("source-map-support/register");`, {raw: true, entryOnly: false}),
+        ],
         target: 'node',
       },
     ]);
@@ -298,24 +289,20 @@ class Bob {
 }
 
 const bob = new Bob();
-const template1 = (
+const page = (
   <html>
     <head>
       <title>React Chess</title>
       <Link
         rel="stylesheet"
         type="text/css"
-        name="styles/reset"
         entryfile="./styles/reset.css" />
     </head>
     <body>
       <Fragment
         id="root"
-        name="app"
-        entryfile="./poop/components.js" />
+        entryfile="./components.js" />
       <Script
-        name="chess"
-        async={true}
         entryfile="./chess.js" />
     </body>
   </html>
@@ -326,7 +313,7 @@ async function main() {
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
 
-  const compiledTemplate = await bob.build(template1, staticdir, '/static/');
+  const compiledTemplate = await bob.build(page, staticdir, '/static/');
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
 }
