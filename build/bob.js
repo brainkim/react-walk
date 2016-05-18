@@ -235,14 +235,12 @@ class Bob {
     const clientOutput = {
       path: '/client',
       publicPath: publicUrl,
-      filename: '[name]',
-      chunkFilename: '[name]',
+      filename: '[name].js',
     };
     const serverOutput = {
       path: '/server',
       publicPath: publicUrl,
-      filename: '[name]',
-      chunkFilename: '[name]',
+      filename: '[name].js',
       libraryTarget: 'commonjs2',
     };
     const module = defaultModule;
