@@ -61,34 +61,40 @@ function normalizeAssets(assets) {
   }
 }
 
-function getAsset(assetsByChunkName, name, ext) {
+function getNameFromEntryfile(entryfile, context) {
+  const relative = path.relative(context, path.resolve(context, entryfile));
+  const {dir, name} = path.parse(relative);
+  return path.join(dir, name);
+}
+
+function getAsset(assetsByChunkName, entryfile, ext, context) {
+  const name = getNameFromEntryfile(entryfile, context);
   const assets = normalizeAssets(assetsByChunkName[name]);
-  const [asset] = assets.filter((a) => new RegExp(`\.${ext}$`, 'i').test(a));
+  const [asset] = assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a));
   return asset;
 }
 
-function getNameFromEntryFile(entryfile, context) {
-  const relative = path.relative(context, entryfile);
-  return relative;
-}
-
-function replaceAssets(stats, element) {
+function replaceAssets(stats, element, context) {
   if (stats.children != null) {
     [stats] = stats.children.filter((child) => child.name === 'client');
   }
   const {assetsByChunkName, publicPath} = stats;
 
   return ReactWalk.postWalk(element, (element) => {
+    const {entryfile} = element.props;
+    let name;
     switch (element.type) {
       case Link:
-        const href = publicPath + getAsset(assetsByChunkName, element.props.entryfile, 'css');
+        name = getNameFromEntryfile(entryfile, context);
+        const href = publicPath + getAsset(assetsByChunkName, entryfile, '.css', context);
         return (
-          <link {...element.props} href={href} />
+          <link {...element.props} href={href} name={name} />
         );
       case Script:
-        const src = publicPath + getAsset(assetsByChunkName, element.props.entryfile, 'js');
+        name = getNameFromEntryfile(entryfile, context);
+        const src = publicPath + getAsset(assetsByChunkName, entryfile, '.js', context);
         return (
-          <script {...element.props} src={src} />
+          <script {...element.props} src={src} name={name} />
         );
       default:
         return element;
@@ -105,7 +111,7 @@ function requireFromString(str, filename) {
   return _module.exports;
 }
 
-function replaceFragments(fs, stats, element) {
+function replaceFragments(fs, stats, element, context) {
   if (stats.children != null) {
     [stats] = stats.children.filter((child) => child.name === 'server');
   }
@@ -114,7 +120,7 @@ function replaceFragments(fs, stats, element) {
     switch (element.type) {
       case Fragment:
         const {id, wrapper, entryfile, ...props} = element.props;
-        const asset = getAsset(assetsByChunkName, entryfile, 'js');
+        const asset = getAsset(assetsByChunkName, entryfile, '.js', context);
         const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
         require('fs').writeFileSync('poop.js', assetSrc)
         let component = requireFromString(assetSrc, entryfile);
@@ -151,22 +157,24 @@ function extractFragments(page) {
   });
 }
 
-function createWebpackClientEntry(page) {
+function createWebpackClientEntry(page, context) {
   const assets = extractAssets(page);
   const entry = {};
   assets.forEach((asset) => {
     const {entryfile} = asset.props;
-    entry[entryfile] = [entryfile];
+    const name = getNameFromEntryfile(entryfile, context);
+    entry[name] = [entryfile];
   });
   return entry;
 }
 
-function createWebpackServerEntry(page) {
+function createWebpackServerEntry(page, context) {
   const fragments = extractFragments(page);
   const entry = {};
   fragments.forEach((fragment) => {
     const {entryfile} = fragment.props;
-    entry[entryfile] = [entryfile];
+    const name = getNameFromEntryfile(entryfile, context);
+    entry[name] = [entryfile];
   });
   return entry;
 }
@@ -194,7 +202,6 @@ function registerSourceMaps(fs, stats) {
   // TODO(brian): how to register source maps?
   // require('source-map-support').install({
   //   retrieveSourceMap: function(source) {
-  //     console.log(source);
   //     return null;
   //   },
   // });
@@ -230,7 +237,7 @@ const defaultModule = {
 };
 
 class Bob {
-  async build(page, outputdir, publicUrl) {
+  async build(page, outputdir, publicUrl, context) {
     // read from element tree for assets
     const clientOutput = {
       path: '/client',
@@ -246,10 +253,11 @@ class Bob {
     const module = defaultModule;
     const compiler = webpack([
       {
+        context,
         name: 'client',
         context: path.join(__dirname, '../src'),
         devtool: null,
-        entry: createWebpackClientEntry(page),
+        entry: createWebpackClientEntry(page, context),
         output: clientOutput,
         module,
         plugins: [
@@ -258,10 +266,11 @@ class Bob {
         ],
       },
       {
+        context,
         name: 'server',
         context: path.join(__dirname, '../src'),
         devtool: 'source-map',
-        entry: createWebpackServerEntry(page),
+        entry: createWebpackServerEntry(page, context),
         output: serverOutput,
         externals: [webpackNodeExternals()],
         module,
@@ -276,12 +285,13 @@ class Bob {
 
     // write to element tree with compiled assets
     const stats = await runCompilerAsync(compiler);
+    fs.writeFileSync('poop.json', JSON.stringify(stats, null, 2));
     console.timeEnd('jewels');
 
     copydirSync(compilerFs, '/client', fs, outputdir);
     registerSourceMaps(compilerFs, stats);
-    page = replaceAssets(stats, page);
-    page = replaceFragments(compilerFs, stats, page);
+    page = replaceAssets(stats, page, context);
+    page = replaceFragments(compilerFs, stats, page, context);
     return page;
   }
 }
@@ -311,8 +321,9 @@ async function main() {
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
 
-  const compiledTemplate = await bob.build(page, staticdir, '/static/');
+  const compiledTemplate = await bob.build(page, staticdir, '/static/', path.join(__dirname, '../src/'));
   const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
+
   fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
 }
  
