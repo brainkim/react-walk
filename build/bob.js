@@ -27,8 +27,13 @@ function Link() {
 Fragment.defaultProps = {
   wrapper: 'div',
 };
-function Fragment() {
-  throw new Error(`Bob didn't replace this element, sorry!`);
+function Fragment(props) {
+  const {wrapper, entryfile, ...restProps} = props;
+  // TODO(-_-): warn about lack of replacement
+  console.warn(`fragment targeting ${entryfile} was not replaced`);
+  return (
+    <wrapper {...restProps} />
+  );
 }
 
 // webpack utilities
@@ -237,7 +242,12 @@ const defaultModule = {
 };
 
 class Bob {
+  constructor() {
+    this._cache = {};
+  }
+
   async build(page, outputdir, publicUrl, context) {
+    const cache = this._cache;
     // read from element tree for assets
     const clientOutput = {
       path: '/client',
@@ -264,6 +274,7 @@ class Bob {
           new webpack.optimize.OccurrenceOrderPlugin(),
           new ExtractTextPlugin('[name].css'),
         ],
+        cache,
       },
       {
         context,
@@ -278,20 +289,19 @@ class Bob {
           new webpack.BannerPlugin(`require("source-map-support/register");`, {raw: true, entryOnly: false}),
         ],
         target: 'node',
+        cache,
       },
     ]);
-    console.time('jewels');
     const compilerFs = compiler.outputFileSystem = new MemoryFileSystem();
 
     // write to element tree with compiled assets
     const stats = await runCompilerAsync(compiler);
     fs.writeFileSync('poop.json', JSON.stringify(stats, null, 2));
-    console.timeEnd('jewels');
 
     copydirSync(compilerFs, '/client', fs, outputdir);
     registerSourceMaps(compilerFs, stats);
     page = replaceAssets(stats, page, context);
-    page = replaceFragments(compilerFs, stats, page, context);
+    // page = replaceFragments(compilerFs, stats, page, context);
     return page;
   }
 }
