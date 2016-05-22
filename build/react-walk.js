@@ -14,20 +14,29 @@ function walk(element, innerFn, outerFn) {
 
 exports.preWalk = preWalk;
 function preWalk(element, transformFn) {
-  return walk(
-    transformFn(element),
-    (element) => preWalk(element, transformFn),
-    (element) => element
-  );
+  element = transformFn(element);
+  if (React.isValidElement(element)) {
+    return walk(
+      element,
+      (element) => preWalk(element, transformFn),
+      (element) => element
+    );
+  } else {
+    return element;
+  }
 }
 
 exports.postWalk = postWalk;
 function postWalk(element, transformFn) {
-  return walk(
-    element,
-    (element) => postWalk(element, transformFn),
-    transformFn
-  );
+  if (React.isValidElement(element)) {
+    return walk(
+      element,
+      (element) => postWalk(element, transformFn),
+      transformFn
+    );
+  } else {
+    return element;
+  }
 }
 
 exports.flatten = flatten;
