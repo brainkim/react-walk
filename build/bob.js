@@ -28,11 +28,11 @@ Fragment.defaultProps = {
   wrapper: 'div',
 };
 function Fragment(props) {
-  const {wrapper, entryfile, ...restProps} = props;
+  const {wrapper, entryfile, fragmentProps} = props;
   // TODO(-_-): warn about lack of replacement
   console.warn(`fragment targeting ${entryfile} was not replaced`);
   return (
-    <wrapper {...restProps} />
+    <wrapper {...fragmentProps} />
   );
 }
 
@@ -124,7 +124,7 @@ function replaceFragments(fs, stats, element, context) {
   return ReactWalk.postWalk(element, (element) => {
     switch (element.type) {
       case Fragment:
-        const {id, wrapper, entryfile, ...props} = element.props;
+        const {id, wrapper, entryfile, fragmentProps} = element.props;
         const asset = getAsset(assetsByChunkName, entryfile, '.js', context);
         const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
         require('fs').writeFileSync('poop.js', assetSrc)
@@ -132,7 +132,7 @@ function replaceFragments(fs, stats, element, context) {
         if (component.default != null) {
           component = component.default;
         }
-        const element1 = React.createElement(component, props);
+        const element1 = React.createElement(component, fragmentProps);
         return React.createElement(wrapper, {
           id: id,
           dangerouslySetInnerHTML: {__html: ReactDOM.renderToString(element1)},
@@ -301,7 +301,7 @@ class Bob {
     copydirSync(compilerFs, '/client', fs, outputdir);
     registerSourceMaps(compilerFs, stats);
     page = replaceAssets(stats, page, context);
-    // page = replaceFragments(compilerFs, stats, page, context);
+    page = replaceFragments(compilerFs, stats, page, context);
     return page;
   }
 }
@@ -317,11 +317,8 @@ const page = (
         entryfile="./styles/reset.css" />
     </head>
     <body>
-      <Fragment
-        id="root"
-        entryfile="./components.js" />
-      <Script
-        entryfile="./chess.js" />
+      <Fragment id="root" entryfile="./components.js" />
+      <Script entryfile="./chess.js" />
     </body>
   </html>
 );
