@@ -28,12 +28,10 @@ Fragment.defaultProps = {
   wrapper: 'div',
 };
 function Fragment(props) {
-  const {wrapper, entryfile, fragmentProps} = props;
+  const {wrapper, id, entryfile} = props;
   // TODO(-_-): warn about lack of replacement
   console.warn(`fragment targeting ${entryfile} was not replaced`);
-  return (
-    <wrapper {...fragmentProps} />
-  );
+  return React.createElement(wrapper, {id});
 }
 
 // webpack utilities
@@ -241,72 +239,109 @@ const defaultModule = {
   ],
 };
 
+const defaultOptions = {
+  context: process.cwd(),
+  publicUrl: '/static/',
+  module: defaultModule,
+};
+
 class Bob {
-  constructor() {
-    this._cache = {};
+  constructor(options={}) {
+    this.options = Object.assign({}, defaultOptions, options);
+    this.pages = new Map();
   }
 
-  async build(page, outputdir, publicUrl, context) {
-    const cache = this._cache;
-    // read from element tree for assets
-    const clientOutput = {
-      path: '/client',
-      publicPath: publicUrl,
-      filename: '[name].js',
-    };
-    const serverOutput = {
-      path: '/server',
-      publicPath: publicUrl,
-      filename: '[name].js',
-      libraryTarget: 'commonjs2',
-    };
-    const module = defaultModule;
+  setPage(name, page) {
+    this.pages.set(name, page);
+  }
+
+  getPage(name) {
+    return this.pages.get(name);
+  }
+
+  getCompiledPage(name) {
+    const {context} = this.options;
+    let page = this.getPage(name);
+    page = replaceAssets(this.stats, page, context);
+    return page;
+  }
+
+  async compile() {
+    const {context, publicUrl, module} = this.options;
+    const {clientEntry, serverEntry} = this.getEntries();
     const compiler = webpack([
       {
         context,
         name: 'client',
-        context: path.join(__dirname, '../src'),
         devtool: null,
-        entry: createWebpackClientEntry(page, context),
-        output: clientOutput,
+        entry: clientEntry,
+        output: {
+          path: '/client',
+          publicPath: publicUrl,
+          filename: '[name].js',
+        },
         module,
         plugins: [
           new webpack.optimize.OccurrenceOrderPlugin(),
           new ExtractTextPlugin('[name].css'),
         ],
-        cache,
       },
       {
         context,
         name: 'server',
-        context: path.join(__dirname, '../src'),
         devtool: 'source-map',
-        entry: createWebpackServerEntry(page, context),
-        output: serverOutput,
+        entry: serverEntry,
+        output: {
+          path: '/server',
+          publicPath: publicUrl,
+          filename: '[name].js',
+          libraryTarget: 'commonjs2',
+        },
         externals: [webpackNodeExternals()],
         module,
         plugins: [
           new webpack.BannerPlugin(`require("source-map-support/register");`, {raw: true, entryOnly: false}),
         ],
         target: 'node',
-        cache,
       },
     ]);
+
     const compilerFs = compiler.outputFileSystem = new MemoryFileSystem();
-
-    // write to element tree with compiled assets
     const stats = await runCompilerAsync(compiler);
-    fs.writeFileSync('poop.json', JSON.stringify(stats, null, 2));
+    this.stats = stats;
+    this.compilerFs = compilerFs;
+    return {stats, compilerFs};
+  }
 
-    copydirSync(compilerFs, '/client', fs, outputdir);
-    registerSourceMaps(compilerFs, stats);
-    page = replaceAssets(stats, page, context);
-    page = replaceFragments(compilerFs, stats, page, context);
-    return page;
+  getEntries() {
+    const {context} = this.options;
+    const pages = Array.from(this.pages.values());
+    const clientEntry = pages.reduce((entry, page) => {
+      const assets = extractAssets(page);
+      assets.forEach((asset) => {
+        const {entryfile} = asset.props;
+        const name = getNameFromEntryfile(entryfile, context);
+        entry[name] = [entryfile];
+      });
+      return entry;
+    }, {});
+    const serverEntry = pages.reduce((entry, page) => {
+      const fragments = extractFragments(page);
+      fragments.forEach((fragment) => {
+        const {entryfile} = fragment.props;
+        const name = getNameFromEntryfile(entryfile, context);
+        entry[name] = [entryfile];
+      });
+      return entry;
+    }, {});
+    return {clientEntry, serverEntry};
   }
 }
 
-const bob = new Bob();
+const bob = new Bob({
+  context: path.join(__dirname, '../src'),
+});
+
 const page = (
   <html>
     <head>
@@ -328,10 +363,13 @@ async function main() {
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
 
-  const compiledTemplate = await bob.build(page, staticdir, '/static/', path.join(__dirname, '../src/'));
-  const markup = ReactDOM.renderToStaticMarkup(compiledTemplate);
+  bob.setPage('home', page);
+  await bob.compile();
 
-  fs.writeFileSync(path.resolve(destdir, 'index.html'), markup);
+  let compiledTemplate = bob.getCompiledPage('home');
+  // compiledTemplate = replaceFragments(bob.compilerFs, bob.stats, compiledTemplate, bob.options.context);
+  console.log(ReactDOM.renderToStaticMarkup(compiledTemplate));
+  // fs.writeFileSync(path.resolve(destdir, 'index.html'), compiledTemplate);
 }
  
 main();
