@@ -14,7 +14,6 @@ const ReactWalk = require('./react-walk');
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
 
-
 // TODO(brian): add propTypes when api stabilizes
 function Script() {
   throw new Error(`Bob didn't replace this element, sorry!`);
@@ -65,19 +64,15 @@ function normalizeAssets(assets) {
 }
 
 function getNameFromEntryfile(entryfile, context) {
-  const relative = path.relative(context, path.resolve(context, entryfile));
-  const {dir, name} = path.parse(relative);
-  return path.join(dir, name);
+  return path.relative(context, path.resolve(context, entryfile));
 }
 
 function getAsset(assetsByChunkName, entryfile, ext, context) {
-  const name = getNameFromEntryfile(entryfile, context);
-  const assets = normalizeAssets(assetsByChunkName[name]);
-  const [asset] = assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a));
-  return asset;
+  const assets = normalizeAssets(assetsByChunkName[entryfile]);
+  return assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a))[0];
 }
 
-function replaceAssets(stats, element, context) {
+function replaceAssets(stats, context, element) {
   if (stats.children != null) {
     [stats] = stats.children.filter((child) => child.name === 'client');
   }
@@ -88,14 +83,14 @@ function replaceAssets(stats, element, context) {
     let name;
     switch (element.type) {
       case Link:
-        name = getNameFromEntryfile(entryfile, context);
         const href = publicPath + getAsset(assetsByChunkName, entryfile, '.css', context);
+        name = getNameFromEntryfile(entryfile, context);
         return (
           <link {...element.props} href={href} name={name} />
         );
       case Script:
-        name = getNameFromEntryfile(entryfile, context);
         const src = publicPath + getAsset(assetsByChunkName, entryfile, '.js', context);
+        name = getNameFromEntryfile(entryfile, context);
         return (
           <script {...element.props} src={src} name={name} />
         );
@@ -114,7 +109,7 @@ function requireFromString(str, filename) {
   return _module.exports;
 }
 
-function replaceFragments(fs, stats, element, context) {
+function replaceFragments(stats, fs, element) {
   if (stats.children != null) {
     [stats] = stats.children.filter((child) => child.name === 'server');
   }
@@ -123,7 +118,7 @@ function replaceFragments(fs, stats, element, context) {
     switch (element.type) {
       case Fragment:
         const {id, wrapper, entryfile, fragmentProps} = element.props;
-        const asset = getAsset(assetsByChunkName, entryfile, '.js', context);
+        const asset = getAsset(assetsByChunkName, entryfile, '.js');
         const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
         require('fs').writeFileSync('poop.js', assetSrc)
         let component = requireFromString(assetSrc, entryfile);
@@ -160,34 +155,11 @@ function extractFragments(page) {
   });
 }
 
-function createWebpackClientEntry(page, context) {
-  const assets = extractAssets(page);
-  const entry = {};
-  assets.forEach((asset) => {
-    const {entryfile} = asset.props;
-    const name = getNameFromEntryfile(entryfile, context);
-    entry[name] = [entryfile];
-  });
-  return entry;
-}
-
-function createWebpackServerEntry(page, context) {
-  const fragments = extractFragments(page);
-  const entry = {};
-  fragments.forEach((fragment) => {
-    const {entryfile} = fragment.props;
-    const name = getNameFromEntryfile(entryfile, context);
-    entry[name] = [entryfile];
-  });
-  return entry;
-}
-
 function copydirSync(fromFs, fromPath, toFs, toPath) {
   const stat = fromFs.statSync(fromPath);
   if (stat.isFile()) {
     toFs.writeFileSync(toPath, fromFs.readFileSync(fromPath));
   } else if (stat.isDirectory()) {
-    mkdirp.sync(toPath);
     fromFs.readdirSync(fromPath).forEach((dir) => {
       copydirSync(
         fromFs, path.join(fromPath, dir),
@@ -251,39 +223,46 @@ class Bob {
     this.pages = new Map();
   }
 
-  setPage(name, page) {
-    this.pages.set(name, page);
-  }
-
-  getPage(name) {
-    return this.pages.get(name);
-  }
-
-  getCompiledPage(name) {
+  getEntries(pages) {
     const {context} = this.options;
-    let page = this.getPage(name);
-    page = replaceAssets(this.stats, page, context);
-    return page;
+    const clientEntry = pages.reduce((entry, page) => {
+      const assets = extractAssets(page);
+      assets.forEach((asset) => {
+        const {entryfile} = asset.props;
+        entry[entryfile] = [path.resolve(context, entryfile)];
+      });
+      return entry;
+    }, {});
+    const serverEntry = pages.reduce((entry, page) => {
+      const fragments = extractFragments(page);
+      fragments.forEach((fragment) => {
+        const {entryfile} = fragment.props;
+        entry[entryfile] = [path.resolve(context, entryfile)];
+      });
+      return entry;
+    }, {});
+    return {clientEntry, serverEntry};
   }
 
-  async compile() {
+  async compilePage(page) {
     const {context, publicUrl, module} = this.options;
-    const {clientEntry, serverEntry} = this.getEntries();
+    const {clientEntry, serverEntry} = this.getEntries([page]);
     const compiler = webpack([
       {
         context,
         name: 'client',
-        devtool: null,
+        devtool: 'source-map',
         entry: clientEntry,
         output: {
           path: '/client',
           publicPath: publicUrl,
-          filename: '[name].js',
+          filename: '[id].js',
+          chunkFilename: '[id].js',
         },
         module,
         plugins: [
           new webpack.optimize.OccurrenceOrderPlugin(),
-          new ExtractTextPlugin('[name].css'),
+          new ExtractTextPlugin('[id].css'),
         ],
       },
       {
@@ -294,7 +273,8 @@ class Bob {
         output: {
           path: '/server',
           publicPath: publicUrl,
-          filename: '[name].js',
+          filename: '[id].js',
+          chunkFilename: '[id].js',
           libraryTarget: 'commonjs2',
         },
         externals: [webpackNodeExternals()],
@@ -310,31 +290,22 @@ class Bob {
     const stats = await runCompilerAsync(compiler);
     this.stats = stats;
     this.compilerFs = compilerFs;
-    return {stats, compilerFs};
+    page = this.replaceAssets(page);
+    page = this.replaceFragments(page);
+    return page;
   }
 
-  getEntries() {
+  replaceAssets(page) {
     const {context} = this.options;
-    const pages = Array.from(this.pages.values());
-    const clientEntry = pages.reduce((entry, page) => {
-      const assets = extractAssets(page);
-      assets.forEach((asset) => {
-        const {entryfile} = asset.props;
-        const name = getNameFromEntryfile(entryfile, context);
-        entry[name] = [entryfile];
-      });
-      return entry;
-    }, {});
-    const serverEntry = pages.reduce((entry, page) => {
-      const fragments = extractFragments(page);
-      fragments.forEach((fragment) => {
-        const {entryfile} = fragment.props;
-        const name = getNameFromEntryfile(entryfile, context);
-        entry[name] = [entryfile];
-      });
-      return entry;
-    }, {});
-    return {clientEntry, serverEntry};
+    return replaceAssets(this.stats, context, page);
+  }
+
+  replaceFragments(page) {
+    return replaceFragments(this.stats, this.compilerFs, page);
+  }
+
+  writeAssetsSync(destdir) {
+    copydirSync(this.compilerFs, '/client', fs, destdir);
   }
 }
 
@@ -349,11 +320,11 @@ const page = (
       <Link
         rel="stylesheet"
         type="text/css"
-        entryfile="./styles/reset.css" />
+        entryfile="styles/reset.css" />
     </head>
     <body>
-      <Fragment id="root" entryfile="./components.js" />
-      <Script entryfile="./chess.js" />
+      <Fragment id="root" entryfile="components.js" />
+      <Script entryfile="chess.js" />
     </body>
   </html>
 );
@@ -362,14 +333,12 @@ async function main() {
   const destdir = path.join(__dirname, '../dist/');
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
+  mkdirp.sync(staticdir);
 
-  bob.setPage('home', page);
-  await bob.compile();
+  const page1 = await bob.compilePage(page);
 
-  let compiledTemplate = bob.getCompiledPage('home');
-  // compiledTemplate = replaceFragments(bob.compilerFs, bob.stats, compiledTemplate, bob.options.context);
-  console.log(ReactDOM.renderToStaticMarkup(compiledTemplate));
-  // fs.writeFileSync(path.resolve(destdir, 'index.html'), compiledTemplate);
+  fs.writeFileSync(path.resolve(destdir, 'index.html'), ReactDOM.renderToStaticMarkup(page1));
+  bob.writeAssetsSync(staticdir);
 }
  
 main();
