@@ -14,6 +14,7 @@ const ReactWalk = require('./react-walk');
 const rimraf = require('rimraf');
 const mkdirp = require('mkdirp');
 
+// custom components
 // TODO(brian): add propTypes when api stabilizes
 function Script() {
   throw new Error(`Bob didn't replace this element, sorry!`);
@@ -100,6 +101,7 @@ function replaceAssets(stats, context, element) {
   });
 }
 
+// server-side rendering utils
 const Module = require('module');
 
 function requireFromString(str, filename) {
@@ -107,6 +109,19 @@ function requireFromString(str, filename) {
   _module.paths = module.paths;
   _module._compile(str, filename);
   return _module.exports;
+}
+
+function registerSourceMaps(fs, stats) {
+  if (stats.children != null) {
+    [stats] = stats.children.filter((child) => child.name === 'server');
+  }
+  const {assetsByChunkName} = stats;
+  // TODO(brian): how to register source maps?
+  // require('source-map-support').install({
+  //   retrieveSourceMap: function(source) {
+  //     return null;
+  //   },
+  // });
 }
 
 function replaceFragments(stats, fs, element) {
@@ -120,7 +135,6 @@ function replaceFragments(stats, fs, element) {
         const {id, wrapper, entryfile, fragmentProps} = element.props;
         const asset = getAsset(assetsByChunkName, entryfile, '.js');
         const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
-        require('fs').writeFileSync('poop.js', assetSrc)
         let component = requireFromString(assetSrc, entryfile);
         if (component.default != null) {
           component = component.default;
@@ -167,19 +181,6 @@ function copydirSync(fromFs, fromPath, toFs, toPath) {
       );
     });
   }
-}
-
-function registerSourceMaps(fs, stats) {
-  if (stats.children != null) {
-    [stats] = stats.children.filter((child) => child.name === 'server');
-  }
-  const {assetsByChunkName} = stats;
-  // TODO(brian): how to register source maps?
-  // require('source-map-support').install({
-  //   retrieveSourceMap: function(source) {
-  //     return null;
-  //   },
-  // });
 }
 
 const defaultModule = {
@@ -229,7 +230,7 @@ class Bob {
       const assets = extractAssets(page);
       assets.forEach((asset) => {
         const {entryfile} = asset.props;
-        entry[entryfile] = [path.resolve(context, entryfile)];
+        entry[entryfile] = [entryfile];
       });
       return entry;
     }, {});
@@ -237,7 +238,7 @@ class Bob {
       const fragments = extractFragments(page);
       fragments.forEach((fragment) => {
         const {entryfile} = fragment.props;
-        entry[entryfile] = [path.resolve(context, entryfile)];
+        entry[entryfile] = [entryfile];
       });
       return entry;
     }, {});
@@ -287,8 +288,7 @@ class Bob {
     ]);
 
     const compilerFs = compiler.outputFileSystem = new MemoryFileSystem();
-    const stats = await runCompilerAsync(compiler);
-    this.stats = stats;
+    this.stats = await runCompilerAsync(compiler);
     this.compilerFs = compilerFs;
     page = this.replaceAssets(page);
     page = this.replaceFragments(page);
@@ -320,11 +320,11 @@ const page = (
       <Link
         rel="stylesheet"
         type="text/css"
-        entryfile="styles/reset.css" />
+        entryfile="./styles/reset.css" />
     </head>
     <body>
-      <Fragment id="root" entryfile="components.js" />
-      <Script entryfile="chess.js" />
+      <Fragment id="root" entryfile="./components.js" />
+      <Script entryfile="./chess.js" />
     </body>
   </html>
 );
