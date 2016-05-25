@@ -6,6 +6,7 @@ const ReactDOM = require('react-dom/server');
 
 const webpack = require('webpack');
 const MemoryFileSystem = require('memory-fs');
+
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const webpackNodeExternals = require('webpack-node-externals');
 
@@ -223,20 +224,28 @@ const defaultModule = {
   ],
 };
 
+class WebpackBackend {
+  serializeToPath(path) {
+    return new Promise((resolve, reject) => {
+    });
+  }
+}
+
 const defaultOptions = {
   context: process.cwd(),
   publicUrl: '/static/',
   module: defaultModule,
+  compilerBackend: new WebpackBackend(),
 };
 
 class Bob {
   constructor(options={}) {
     this.options = Object.assign({}, defaultOptions, options);
-    this.pages = new Map();
   }
 
   getEntries(pages) {
     const {context} = this.options;
+
     const clientEntry = pages.reduce((entry, page) => {
       const assets = extractAssets(page);
       assets.forEach((asset) => {
@@ -257,8 +266,11 @@ class Bob {
   }
 
   async compilePage(page) {
-    const {context, publicUrl, module} = this.options;
+    const {publicUrl, module} = this.options;
     const {clientEntry, serverEntry} = this.getEntries([page]);
+    let context =  path.resolve(__dirname, '../src');
+    console.log(context);
+
     const compiler = webpack([
       {
         context,
@@ -318,11 +330,14 @@ class Bob {
   writeAssetsSync(destdir) {
     copydirSync(this.compilerFs, '/client', fs, destdir);
   }
+
+  saveCompilationSync(path) {
+    this.compilerBackend.serializeTo(path);
+    copydirSync(this.compilerFs, '/', fs, path);
+  }
 }
 
-const bob = new Bob({
-  context: path.join(__dirname, '../src'),
-});
+const bob = new Bob({});
 
 const page = (
   <html>
@@ -331,11 +346,11 @@ const page = (
       <Link
         rel="stylesheet"
         type="text/css"
-        entryfile="./styles/reset.css" />
+        entryfile={'./styles/reset.css'} />
     </head>
     <body>
-      <Fragment id="root" entryfile="./components.js" />
-      <Script entryfile="./chess.js" />
+      <Fragment id="root" entryfile={'./chess.js'} />
+      <Script entryfile={'./chess.js'} />
     </body>
   </html>
 );
