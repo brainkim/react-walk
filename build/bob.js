@@ -85,6 +85,15 @@ function getAsset(assetsByChunkName, entryfile, ext) {
 }
 
 // server-side rendering utils
+function extractAssets(page) {
+  return ReactWalk.flatten(page).filter((element) => {
+    switch (element.type) {
+      case Link:
+      case Script:
+        return true;
+    }
+  });
+}
 function extractFragments(page) {
   return ReactWalk.flatten(page).filter((element) => {
     switch (element.type) {
