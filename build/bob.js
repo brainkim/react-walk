@@ -30,7 +30,6 @@ Fragment.defaultProps = {
 };
 function Fragment(props) {
   const {wrapper, id, entryfile} = props;
-  // TODO(-_-): warn about lack of replacement
   console.warn(`fragment targeting ${entryfile} was not replaced`);
   return React.createElement(wrapper, {id});
 }
@@ -38,12 +37,11 @@ function Fragment(props) {
 // webpack utilities
 function runCompilerAsync(compiler) {
   return new Promise((resolve, reject) => {
-    // NOTE(brian): jesus christ how do I get a sane error message from webpack
     compiler.run((err, stats) => {
       if (err) {
         reject(err);
       } else if (stats.hasErrors()) {
-        // NOTE(brian): whyyyyyy webpack
+        // NOTE(brian): holy fucking shit webpack
         reject(new Error('\n'+stats.toString({
           assets: false,
           version: false,
@@ -65,23 +63,8 @@ function runCompilerAsync(compiler) {
   });
 }
 
-// NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
-function normalizeAssets(assets) {
-  if (typeof assets === 'string') {
-    return [assets];
-  } else if (Array.isArray(assets)) {
-    return assets;
-  } else {
-    return [];
-  }
-}
-
 function getNameFromEntryfile(entryfile, context) {
   return path.relative(context, path.resolve(context, entryfile));
-}
-function getAsset(assetsByChunkName, entryfile, ext) {
-  const assets = normalizeAssets(assetsByChunkName[entryfile]);
-  return assets.filter((a) => new RegExp(`${ext}$`, 'i').test(a))[0];
 }
 
 // server-side rendering utils
@@ -116,7 +99,13 @@ function copydirSync(fromFs, fromPath, toFs, toPath) {
   if (stat.isFile()) {
     toFs.writeFileSync(toPath, fromFs.readFileSync(fromPath));
   } else if (stat.isDirectory()) {
-    toFs.mkdirSync(toPath);
+    try {
+      toFs.mkdirSync(toPath);
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        throw err;
+      }
+    }
     fromFs.readdirSync(fromPath).forEach((dir) => {
       copydirSync(
         fromFs, path.join(fromPath, dir),
@@ -155,23 +144,59 @@ const defaultModule = {
   ],
 };
 
-class WebpackBackend {
-  serializeToPath(path) {
-    return new Promise((resolve, reject) => {
-    });
+// webpack normalization functions
+// NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
+function normalizeAssets(assets) {
+  if (typeof assets === 'string') {
+    return [assets];
+  } else if (Array.isArray(assets)) {
+    return assets;
+  } else {
+    return [];
   }
 }
 
-const defaultOptions = {
-  context: process.cwd(),
-  publicUrl: '/static/',
-  module: defaultModule,
-  compilerBackend: new WebpackBackend(),
-};
+function normalizeWebpackStats(stats) {
+  const {assetsByChunkName} = stats;
+  return Object.keys(assetsByChunkName).reduce((normalization, filename) => {
+    normalization[filename] = normalizeAssets(assetsByChunkName[filename]);
+    return normalization;
+  }, {});
+}
+
+function createStaticFilesObject(stats) {
+  /**
+   * example return value as json
+   * {
+   *   "client": {
+   *     "./filename.js": ["0.js", "0.js.map", "0.css", 0.css.map"]
+   *   },
+   *   "server": {
+   *     "./otherfilename.js": ["0.js"]
+   *   },
+   *   "options": {
+   *     "context": "/home/brian/myproject/src",
+   *     "publicUrl": "/static/"
+   *   }
+   * }
+   */
+  const [clientStats] = stats.children.filter((child) => child.name === 'client');
+  const [serverStats] = stats.children.filter((child) => child.name === 'server');
+  return {
+    client: normalizeWebpackStats(clientStats),
+    server: normalizeWebpackStats(serverStats),
+  };
+}
 
 class Bob {
   constructor(options={}) {
+    const defaultOptions = {
+      context: process.cwd(),
+      publicUrl: '/static/',
+    };
     this.options = Object.assign({}, defaultOptions, options);
+    this.compiler = null;
+    this.fs = null;
   }
 
   getEntries(pages) {
@@ -197,7 +222,7 @@ class Bob {
   }
 
   async compilePage(page) {
-    const {publicUrl, module} = this.options;
+    const {publicUrl} = this.options;
     const {clientEntry, serverEntry} = this.getEntries([page]);
     let context =  path.resolve(__dirname, '../src');
 
@@ -213,7 +238,7 @@ class Bob {
           filename: '[id].js',
           chunkFilename: '[id].js',
         },
-        module,
+        module: defaultModule,
         plugins: [
           new webpack.optimize.OccurrenceOrderPlugin(),
           new ExtractTextPlugin('[id].css'),
@@ -232,7 +257,7 @@ class Bob {
           libraryTarget: 'commonjs2',
         },
         externals: [webpackNodeExternals()],
-        module,
+        module: defaultModule,
         plugins: [
           new webpack.BannerPlugin(`require("source-map-support/register");`, {raw: true, entryOnly: false}),
         ],
@@ -241,31 +266,37 @@ class Bob {
     ]);
 
     this.fs = this.compiler.outputFileSystem = new MemoryFileSystem();
-    this.stats = await runCompilerAsync(this.compiler);
+    const stats = await runCompilerAsync(this.compiler);
+    this.staticfiles = {
+      ...createStaticFilesObject(stats),
+      options: this.options,
+    };
+    this.fs.writeFileSync('/staticfiles.json', JSON.stringify(this.staticfiles, null, 2));
+    return this.transformPage(page);
+  }
+
+  transformPage(page) {
     page = this.replaceAssets(page);
-    // page = this.replaceFragments(page);
+    page = this.replaceFragments(page);
     return page;
   }
 
   replaceAssets(page) {
-    const {context} = this.options;
-    // NOTE(brian): assumes this.stats is always one of those horrible webpack multistats
-    const [stats] = this.stats.children.filter((child) => child.name === 'client');
-    const {assetsByChunkName, publicPath} = stats;
-
+    const {context, publicUrl} = this.options;
+    const {client} = this.staticfiles;
     return ReactWalk.postWalk(page, (elem) => {
       const {entryfile} = elem.props;
-      let url, name;
+      let asset, url, name;
       switch (elem.type) {
         case Link:
-          url = publicPath + getAsset(assetsByChunkName, entryfile, '.css');
           name = getNameFromEntryfile(entryfile, context);
+          url = publicUrl + client[entryfile].filter((a) => /\.css$/.test(a))[0];
           return (
             <link {...elem.props} href={url} name={name} />
           );
         case Script:
-          url = publicPath + getAsset(assetsByChunkName, entryfile, '.js');
           name = getNameFromEntryfile(entryfile, context);
+          url = publicUrl + client[entryfile].filter((a) => /\.js/.test(a))[0];
           return (
             <script {...elem.props} src={url} name={name} />
           );
@@ -276,39 +307,45 @@ class Bob {
   }
 
   replaceFragments(page) {
-    if (stats.children != null) {
-      [stats] = stats.children.filter((child) => child.name === 'server');
-    }
-    const {assetsByChunkName} = stats;
-    return ReactWalk.postWalk(element, (element) => {
-      switch (element.type) {
+    const {server} = this.staticfiles;
+    return ReactWalk.postWalk(page, (elem) => {
+      switch (elem.type) {
         case Fragment:
-          const {id, wrapper, entryfile, fragmentProps} = element.props;
-          const asset = getAsset(assetsByChunkName, entryfile, '.js');
-          const assetSrc = fs.readFileSync(path.join('/server', asset), 'utf8');
+          const {id, wrapper, entryfile, fragmentProps} = elem.props;
+          const assetPath = server[entryfile].filter((a) => /\.js/.test(a))[0];
+          const assetSrc = this.fs.readFileSync(path.join('/server', assetPath), 'utf8');
           // TODO(brian): how do we require from a string in memory and not have to write sourcemaps to disk???
           let component = requireFromString(assetSrc, entryfile);
           // NOTE(brian): naive check for stupid es6 requires
           if (component.default != null) {
             component = component.default;
           }
-          const element1 = React.createElement(component, fragmentProps);
+          const elem1 = React.createElement(component, fragmentProps);
           return React.createElement(wrapper, {
             id: id,
-            dangerouslySetInnerHTML: {__html: ReactDOMServer.renderToString(element1)},
+            dangerouslySetInnerHTML: {__html: ReactDOMServer.renderToString(elem1)},
           });
         default:
-          return element;
+          return elem;
       }
     });
   }
 
-  writeAssetsSync(destdir) {
-    copydirSync(this.fs, '/client', fs, destdir);
-  }
-
   saveCompilationSync(path) {
     copydirSync(this.fs, '/', fs, path);
+  }
+
+  static loadCompilationSync(path) {
+    const instance = new Bob();
+    instance.fs = new MemoryFileSystem();
+    copydirSync(fs, path, instance.fs, '/');
+    instance.staticfiles = JSON.parse(instance.fs.readFileSync('/staticfiles.json'));
+    instance.options = instance.staticfiles.options;
+    return instance;
+  }
+
+  saveAssetsSync(path) {
+    copydirSync(this.fs, '/client', fs, path);
   }
 }
 
@@ -337,13 +374,19 @@ async function main() {
   const destdir = path.join(__dirname, '../dist/');
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
-  mkdirp.sync('./dist');
+  mkdirp.sync(staticdir);
 
   const page1 = await bob.compilePage(page);
   console.log(ReactDOMServer.renderToString(page1));
 
-  bob.writeAssetsSync(staticdir);
+  rimraf.sync('./poop');
+  bob.saveAssetsSync(staticdir);
+  bob.saveCompilationSync('./poop');
+
+  const bob1 = Bob.loadCompilationSync('./poop');
+
+  console.log(ReactDOMServer.renderToStaticMarkup(page1) === ReactDOMServer.renderToStaticMarkup(bob1.transformPage(page)));
   fs.writeFileSync(path.resolve(destdir, 'index.html'), ReactDOMServer.renderToStaticMarkup(page1));
 }
- 
+
 main();
