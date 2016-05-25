@@ -37,14 +37,25 @@ function Fragment(props) {
 // webpack utilities
 function runCompilerAsync(compiler) {
   return new Promise((resolve, reject) => {
+    // NOTE(brian): jesus christ how do I get a sane error message from webpack
     compiler.run((err, stats) => {
       if (err) {
         reject(err);
       } else if (stats.hasErrors()) {
-        // TODO(brian):
-        reject(new Error(stats.toString({
+        // NOTE(brian): whyyyyyy webpack
+        reject(new Error('\n'+stats.toString({
           assets: false,
+          version: false,
+          timings: false,
+          hash: false,
+          children: true,
           chunks: false,
+          chunkModules: false,
+          errors: true,
+          errorDetails: true,
+          warnings: true,
+          reasons: false,
+          colors: true,
         })));
       } else {
         resolve(stats.toJson());
