@@ -1,11 +1,11 @@
 {
-  "name": "react-chess",
+  "name": "page-builder",
   "license": "MIT",
   "version": "0.0.0",
-  "author": "Brian Kim <briankimpossible@gmail.com>",
+  "author": "Brian Kim et al.",
   "scripts": {
     "start": "node server.js",
-    "test": "karma start karma.config.js"
+    "test": "echo \"hahahaa you fucking goof there are no tests psych 😘 love\""
   },
   "devDependencies": {
     "babel-loader": "6.2.4",
