@@ -1,19 +1,14 @@
-const fs = require('fs');
-const path = require('path');
-
-const React = require('react');
-const ReactDOMServer = require('react-dom/server');
-
-const webpack = require('webpack');
-const MemoryFileSystem = require('memory-fs');
-
-const ExtractTextPlugin = require('extract-text-webpack-plugin');
-const WebpackNodeExternals = require('webpack-node-externals');
-
-const ReactWalk = require('./react-walk');
-
-const rimraf = require('rimraf');
-const mkdirp = require('mkdirp');
+import fs from 'fs'
+import path from 'path'
+import React from 'react'
+import ReactDOMServer from 'react-dom/server'
+import webpack from 'webpack'
+import MemoryFileSystem from 'memory-fs'
+import ExtractTextPlugin from 'extract-text-webpack-plugin'
+import WebpackNodeExternals from 'webpack-node-externals'
+import ReactWalk from './react-walk'
+import rimraf from 'rimraf'
+import mkdirp from 'mkdirp'
 
 // custom components
 // TODO(brian): add propTypes when api stabilizes

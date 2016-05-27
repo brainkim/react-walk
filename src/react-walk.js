@@ -1,7 +1,6 @@
-const React = require('react');
+import React from 'react'
 
-exports.walk = walk;
-function walk(element, innerFn, outerFn) {
+export function walk(element, innerFn, outerFn) {
   const children = React.Children.map(element.props.children, (child) => {
     if (React.isValidElement(child)) {
       return innerFn(child);
@@ -12,8 +11,7 @@ function walk(element, innerFn, outerFn) {
   return outerFn(React.cloneElement(element, {children}));
 }
 
-exports.preWalk = preWalk;
-function preWalk(element, transformFn) {
+export function preWalk(element, transformFn) {
   element = transformFn(element);
   if (React.isValidElement(element)) {
     return walk(
@@ -26,8 +24,7 @@ function preWalk(element, transformFn) {
   }
 }
 
-exports.postWalk = postWalk;
-function postWalk(element, transformFn) {
+export function postWalk(element, transformFn) {
   if (React.isValidElement(element)) {
     return walk(
       element,
@@ -39,8 +36,7 @@ function postWalk(element, transformFn) {
   }
 }
 
-exports.flatten = flatten;
-function flatten(element) {
+export function flatten(element) {
   const result = [];
   postWalk(element, (element) => {
     result.push(element);
