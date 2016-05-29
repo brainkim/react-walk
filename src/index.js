@@ -6,7 +6,7 @@ import webpack from 'webpack'
 import MemoryFileSystem from 'memory-fs'
 import ExtractTextPlugin from 'extract-text-webpack-plugin'
 import WebpackNodeExternals from 'webpack-node-externals'
-import ReactWalk from './react-walk'
+import * as ReactWalk from './react-walk'
 import rimraf from 'rimraf'
 import mkdirp from 'mkdirp'
 
@@ -25,7 +25,9 @@ Fragment.defaultProps = {
 };
 function Fragment(props) {
   const {wrapper, id, entryfile} = props;
-  console.warn(`fragment targeting ${entryfile} was not replaced`);
+  // ¿Can I return when the entryfile could leak path information?
+  // console.warn(`fragment targeting ${entryfile} was not replaced`);
+  // throw new Error(`Bob didn't replace this element, sorry!`);
   return React.createElement(wrapper, {id});
 }
 
@@ -110,34 +112,35 @@ function copydirSync(fromFs, fromPath, toFs, toPath) {
   }
 }
 
-const defaultModule = {
-  loaders: [
-    {
-      test: /\.js$/,
-      loader: 'babel-loader',
-      include: path.join(__dirname, '../src'),
-    },
-    {
-      test: /\.css$/,
-      loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
-    },
-    {
-      test: /\.svg$/,
-      loader: 'file-loader',
-      query: {
-        name: '[name].[ext]',
+function getModule(context) {
+  const defaultModule = {
+    loaders: [
+      {
+        test: /\.js$/,
+        loader: 'babel-loader',
       },
-    },
-    {
-      test: /\.pgn$/,
-      loader: 'raw-loader',
-    },
-    {
-      test: /\.ohm$/,
-      loader: 'raw-loader',
-    },
-  ],
-};
+      {
+        test: /\.css$/,
+        loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
+      },
+      {
+        test: /\.svg$/,
+        loader: 'file-loader',
+        query: {
+          name: '[name].[ext]',
+        },
+      },
+      {
+        test: /\.pgn$/,
+        loader: 'raw-loader',
+      },
+      {
+        test: /\.ohm$/,
+        loader: 'raw-loader',
+      },
+    ],
+  };
+}
 
 // webpack normalization functions
 // NOTE(-_-): the value of assetsByChunkName from webpack can be an array (if there are multiple assets like js, css, js.map) or a string (if there is a single asset).
@@ -217,9 +220,8 @@ class Bob {
   }
 
   async compilePage(page) {
-    const {publicUrl} = this.options;
+    const {context, publicUrl} = this.options;
     const {clientEntry, serverEntry} = this.getEntries([page]);
-    let context =  path.resolve(__dirname, '../src');
 
     this.compiler = webpack([
       {
@@ -233,7 +235,7 @@ class Bob {
           filename: '[id].js',
           chunkFilename: '[id].js',
         },
-        module: defaultModule,
+        module: getModule(context),
         plugins: [
           new webpack.optimize.OccurrenceOrderPlugin(),
           new ExtractTextPlugin('[id].css'),
@@ -252,7 +254,7 @@ class Bob {
           libraryTarget: 'commonjs2',
         },
         externals: [WebpackNodeExternals()],
-        module: defaultModule,
+        module: getModule(context),
         plugins: [
           new webpack.BannerPlugin(`require("source-map-support/register");`, {raw: true, entryOnly: false}),
         ],
@@ -272,7 +274,7 @@ class Bob {
 
   transformPage(page) {
     page = this.replaceAssets(page);
-    page = this.replaceFragments(page);
+    // page = this.replaceFragments(page);
     return page;
   }
 
@@ -345,7 +347,7 @@ class Bob {
 }
 
 const bob = new Bob({
-  context: path.join(__dirname, '../src'),
+  context: path.join(__dirname, '../../react-chess/src'),
   publicUrl: '/static/',
 });
 
@@ -356,17 +358,17 @@ const page = (
       <Link
         rel="stylesheet"
         type="text/css"
-        entryfile={require.resolve('../src/styles/reset.css')} />
+        entryfile={'./styles/reset.css'} />
     </head>
     <body>
-      <Fragment id="root" entryfile={require.resolve('../src/components.js')} />
-      <Script entryfile={require.resolve('../src/chess.js')} />
+      <Fragment id="root" entryfile={'./components.js'} />
+      <Script entryfile={'./chess.js'} />
     </body>
   </html>
 );
 
 async function main() {
-  const destdir = path.join(__dirname, '../dist/');
+  const destdir = path.join(__dirname, 'dist/');
   const staticdir = path.join(destdir, '/static/');
   rimraf.sync(destdir);
   mkdirp.sync(staticdir);
