@@ -16,8 +16,8 @@ export function preWalk(element, transformFn) {
   if (React.isValidElement(element)) {
     return walk(
       element,
-      (element) => preWalk(element, transformFn),
-      (element) => element
+      (element1) => preWalk(element1, transformFn),
+      (element1) => element1
     );
   } else {
     return element;
@@ -28,7 +28,7 @@ export function postWalk(element, transformFn) {
   if (React.isValidElement(element)) {
     return walk(
       element,
-      (element) => postWalk(element, transformFn),
+      (element1) => postWalk(element1, transformFn),
       transformFn
     );
   } else {
@@ -38,9 +38,8 @@ export function postWalk(element, transformFn) {
 
 export function flatten(element) {
   const result = [];
-  postWalk(element, (element) => {
-    result.push(element);
-    return element;
+  postWalk(element, (element1) => {
+    result.push(element1);
   });
   return result;
 }
