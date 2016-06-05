@@ -1,4 +1,4 @@
-import React
+import React from 'react'
 
 import fs from 'fs'
 import path from 'path'
@@ -210,7 +210,6 @@ class Bob {
 
   transformPage(page) {
     page = this.replaceAssets(page);
-    // page = this.replaceFragments(page);
     return page;
   }
 
