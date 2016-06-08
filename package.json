@@ -2,6 +2,10 @@
   "name": "react-walk",
   "license": "MIT",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainkim/react-walk.git"
+  },
   "author": "Brian Kim et al.",
   "scripts": {
     "develop": "nodemon --exec ./manage.js src/react-walk.js",
