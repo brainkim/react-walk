@@ -13,13 +13,10 @@
     "babel-preset-react": "6.5.0",
     "babel-preset-stage-2": "6.5.0",
     "babel-register": "6.8.0",
-    "babel-runtime": "6.6.1",
-    "mkdirp": "0.5.1",
-    "nodemon": "1.9.2",
+    "babel-runtime": "6.6.1"
+  },
+  "peerDependencies": {
     "react": "15.1.0",
-    "react-dom": "15.1.0",
-    "rimraf": "2.5.2",
-    "systemjs": "0.19.29",
-    "systemjs-plugin-babel": "0.0.12"
+    "react-dom": "15.1.0"
   }
 }
