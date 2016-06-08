@@ -1,7 +1,7 @@
 {
   "name": "react-walk",
   "license": "MIT",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "author": "Brian Kim et al.",
   "scripts": {
     "develop": "nodemon --exec ./manage.js src/react-walk.js",
