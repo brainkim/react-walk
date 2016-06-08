@@ -1,16 +1,18 @@
 {
   "name": "react-walk",
   "license": "MIT",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/brainkim/react-walk.git"
   },
   "author": "Brian Kim et al.",
   "scripts": {
+    "build": "babel src --out-dir dist",
+    "clean": "rimraf dist",
     "develop": "nodemon --exec ./manage.js src/react-walk.js",
-    "test": "echo \"hahahaa you fucking goof there are no tests psych 😘 love\"",
-    "prepublish": "mkdir -p dist && babel src/react-walk.js > dist/react-walk.js"
+    "prepublish": "npm run build",
+    "test": "echo \"hahahaa you fucking goof there are no tests psych 😘 love\""
   },
   "main": "dist/react-walk.js",
   "devDependencies": {
@@ -20,7 +22,8 @@
     "babel-preset-react": "6.5.0",
     "babel-preset-stage-2": "6.5.0",
     "babel-register": "6.8.0",
-    "nodemon": "1.9.2"
+    "nodemon": "1.9.2",
+    "rimraf": "2.5.2"
   },
   "peerDependencies": {
     "react": ">=0.13.2 || ^0.14 || ^15.0.0"
