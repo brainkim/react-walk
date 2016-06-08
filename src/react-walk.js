@@ -1,5 +1,7 @@
 import React from 'react'
 
+// These walk functions are really just translations of this file from clojure:
+// https://github.com/clojure/clojure/blob/master/src/clj/clojure/walk.clj
 export function walk(element, innerFn, outerFn) {
   const children = React.Children.map(element.props.children, (child) => {
     if (React.isValidElement(child)) {
