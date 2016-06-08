@@ -1,38 +1,50 @@
 # react-walk
 
-`react-walk` exposes a couple functions to help you read and manipulate `ReactElements` as trees.
+React Walk exposes a couple functions to help you query and manipulate React Elements as trees.
 
-All this shit is under construction get out of here.
+Nice things about this library:
+- Only depends on `React` and `React.Children` from `react`.
+- All functions are immutable; they won't alias the ReactElements you pass in..
 
-## Example
+## Examples
 ```jsx
 import React from 'react';
 import * as ReactWalk from './src/react-walk';
-import ReactDOMServer from 'react-dom/server';
 
 const page = (
   <html>
     <head>
-      <title>I am an html5 page, psych it's me, JSX</title>
+      <title>It me, jsx</title>
     </head>
     <body>
-      <div id="poop"/>
+      <div id="poop" />
+      <script src="vendor.js" />
+      <script src="main.js" />
     </body>
   </html>
 );
+// reading all the script tags
+const scriptSrcs = ReactWalk.flatten(page).filter((elem) => {
+  return elem.type === 'script';
+}).map((scriptElem) => {
+  return scriptElem.props.src;
+});
+console.log(scriptSrcs);
+// ["vendor.js", "main.js"]
 
-// NOTE(brian): shit's still kinda low-level but I want to add a bunch more
-// functions as we figure out what we're actually creating a library for I dunno
+// hydrating an element with a specific id.
 const hydratedPage = ReactWalk.postWalk(page, (elem) => {
   if (elem.props.id === 'poop') {
     return (
-      <div>I pooped!</div>
+      <div {...elem.props}>I pooped!</div>
     );
   } else {
     return elem;
   }
 });
 
+import ReactDOMServer from 'react-dom/server';
+
 console.log(ReactDOMServer.renderToStaticMarkup(hydratedPage));
-// <html><head><title>I am an html5 page, psych it&#x27;s me, JSX</title></head><body><div>I pooped!</div></body></html>
+// <html><head><title>It me, jsx</title></head><body><div id="poop">I pooped!</div></body></html>
 ```
