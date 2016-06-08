@@ -1,6 +1,8 @@
 # react-walk
 
-`react-walk` exposes a couple functions to help you read and manipulate ReactElements as trees.
+`react-walk` exposes a couple functions to help you read and manipulate `ReactElements` as trees.
+
+All this shit is under construction get out of here.
 
 ## Example
 ```jsx
@@ -11,7 +13,7 @@ import ReactDOMServer from 'react-dom/server';
 const page = (
   <html>
     <head>
-      <title>I am an html5 page JK It's JSX psychhhhhh templates can do one</title>
+      <title>I am an html5 page, psych it's me, JSX</title>
     </head>
     <body>
       <div id="poop"/>
@@ -32,5 +34,5 @@ const hydratedPage = ReactWalk.postWalk(page, (elem) => {
 });
 
 console.log(ReactDOMServer.renderToStaticMarkup(hydratedPage));
-// <html><head><title>I am an html5 page JK It&#x27;s JSX psychhhhhh templates can do one</title></head><body><div>I pooped!</div></body></html>
+// <html><head><title>I am an html5 page, psych it&#x27;s me, JSX</title></head><body><div>I pooped!</div></body></html>
 ```
