@@ -28,7 +28,3 @@ const hydratedPage = ReactWalk.postWalk(page, (elem) => {
 console.log(ReactDOMServer.renderToStaticMarkup(hydratedPage));//.renderToString(hydratedPage));
 // <html><head><title>I am an html5 page JK It&#x27;s JSX psychhhhhh templates can do one</title></head><body><div>I pooped!</div></body></html>
 //                             ^^^^^^^^^
-
-if (false) {
-  import React from 'react';
-}
