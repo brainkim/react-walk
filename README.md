@@ -1,11 +1,16 @@
 # react-walk
 🚨  UNDER CONSTRUCTION GO AWAY DO NOT USE DO NOT THINK ABOUT 🚨
 
-React Walk exposes a couple functions to help you query and manipulate React Elements as trees.
+“React Elements,”
+that which you create when you write `<div/>` with JSX,
+that which you return in your render methods,
+that which jointly comprise a single view into your beautiful application
+React Elements have a special prop, `this.props.children`, which is
+composed of React Elements
 
-Nice things about this library:
-- Only depends on `React` and `React.Children` from `react`.
-- All functions are immutable; they won't alias the ReactElements you pass in..
+React Walk exposes a couple functions to help you read and transform React Elements as trees.
+
+
 
 ## Examples
 ```jsx
@@ -24,12 +29,14 @@ const page = (
     </body>
   </html>
 );
+
 // reading all the script tags
 const scriptSrcs = ReactWalk.flatten(page).filter((elem) => {
   return elem.type === 'script';
 }).map((scriptElem) => {
   return scriptElem.props.src;
 });
+
 console.log(scriptSrcs);
 // ["vendor.js", "main.js"]
 
