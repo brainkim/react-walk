@@ -1,16 +1,7 @@
 # react-walk
 🚨  UNDER CONSTRUCTION GO AWAY DO NOT USE DO NOT THINK ABOUT 🚨
 
-“React Elements,”
-that which you create when you write `<div/>` with JSX,
-that which you return in your render methods,
-that which jointly comprise a single view into your beautiful application
-React Elements have a special prop, `this.props.children`, which is
-composed of React Elements
-
 React Walk exposes a couple functions to help you read and transform React Elements as trees.
-
-
 
 ## Examples
 ```jsx
